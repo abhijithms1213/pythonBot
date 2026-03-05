@@ -1,11 +1,10 @@
 import logging
 import os
-
+from datetime import datetime, timezone
 from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import (ApplicationBuilder, CommandHandler, ContextTypes,
                           MessageHandler, filters)
-
 load_dotenv()
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -27,6 +26,21 @@ async def vivi_intro(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def vivi_greet_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # print(update);
+
+    chat = update.effective_chat
+    if not chat:
+        return
+
+    # only ZeroDevs group
+    if chat.title != "ZeroDevs":
+        return
+
+    user = update.effective_user.first_name
+    text = update.message.text
+
+    print(f"{user}: {text} from log")
+
     chat_id = update.effective_chat.id if update.effective_chat else ""
     if not chat_id:
         return
@@ -46,11 +60,12 @@ async def vivi_greet_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not vivi_reply:
         return
 
-    await context.bot.send_message(
-        chat_id=chat_id,
-        text=vivi_reply,
-    )
-
+    # commented the reply fun.
+    # await context.bot.send_message(
+    #     chat_id=chat_id,
+    #     text=vivi_reply,
+    # )
+ 
 
 async def cmd_caps(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
