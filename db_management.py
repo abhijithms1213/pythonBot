@@ -11,14 +11,14 @@ def addnewbatch(date, cursor):
     # where Date_id = {sanitizedDate}
     output = cursor.fetchall()
     for row in output:
-        print(f'each row 1st attr: {row[0]}')
+        print(f'each row 1st attr (Date_id): {row[0]}')
         if row[0] == sanitizedDate:
             cursor.execute(f'''
         select Date_id from batches where Date_id = {sanitizedDate} 
                              ''')
             output = cursor.fetchone()
-            print(f'found in db {output}')
-            isfound = True
+            print(f'found in db {output[0]}')
+            return
         else:
             continue
 
@@ -30,7 +30,6 @@ def addnewbatch(date, cursor):
         cursor.execute('select * from batches;')
         output = cursor.fetchall()
         print(output)
-    return None
 
 
 def dbops(operation, args):
