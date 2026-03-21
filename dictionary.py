@@ -1,20 +1,24 @@
 import logging
+from xml.etree.ElementTree import tostring
 
 import db_management
 from telegram import ForceReply, Update
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+tele_user_me = int(os.getenv("TELEGRAM_USER_ME"))
 
 batches = 'batches'
 # batches
-# +-----------------------------------+
-# | sql                               |
-# +-----------------------------------+
-# | CREATE TABLE batches(             |
-# | Date_id int NOT NULL PRIMARY KEY, |
-# | Planning_Date int,                |
-# | isPlanned BOOLEAN,                | not necessary
-# | members int)                      |
-# +-----------------------------------+
+# +-----------------------------------------------------+
+# | sql                                                 |
+# +-----------------------------------------------------+
+# | CREATE TABLE batches(                               |
+# | Date_id int NOT NULL PRIMARY KEY,                   |
+# | Planning_Date int, isCurrent BOOLEAN, deadline int) |
+# +-----------------------------------------------------++
 
 dev_ids = 'dev'
 # +----------------------------------------------------------+
@@ -59,6 +63,19 @@ district = {
 print(district)
 
 
+def batchcreates(date):
+    db_management.dbops('check_batch', date)
+
+
+def checkMsg(msg_date):
+    date_to_string = str(msg_date)
+    date_only = date_to_string[:10]
+    print(f'msg date: {date_only}')
+    extracted = date_only.replace('-', '')
+    to_int = int(extracted)
+    db_management.dbops('check_is_msg_under_planning_phase', to_int)
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     text_caps = ' '.join(context.args).upper()
     print(text_caps)
@@ -67,32 +84,29 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def grp_msg(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    userDictionary = {}
     zero_dev_grp_id = -5287913183
     current_id = update.message.chat.id
     if zero_dev_grp_id == current_id:
-        print(f'msg:{update.message.from_user.username} {update.message.from_user.id}  and  {update.message.text} \n')
+        print(
+            f'msg:{update.message.from_user.username} {update.message.from_user.id}  and  {update.message.text} {update.message.date}\n')
+        checkMsg(update.message.date)
+
         # await  context.bot.send_message(chat_id=zero_dev_grp_id, text='ok')
     else:
         print(f'other chat :{update.message.text}')
-
-
-def batchcreates(date):
-    print('hai')
-    db_management.dbops('check_batch', date)
 
 
 async def create_batch_group(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     arg_text = " ".join(context.args)
     tele_uid = update.message.from_user.id
     # check if am I sending the command
-    if tele_uid != 1054613006:
+    if tele_uid != tele_user_me:
         await context.bot.send_message(chat_id=update.message.chat_id, text='poda podaaaa')
 
     print(f'args {arg_text} and {tele_uid}')
     if not arg_text:
         await  context.bot.send_message(chat_id=update.message.chat_id,
-                                        text='formate will be dd-mm-yyyy')
+                                        text='formate will be yyyy-mm-dd')
         return
 
     await  context.bot.send_message(chat_id=update.message.chat_id,
