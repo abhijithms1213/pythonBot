@@ -18,7 +18,7 @@ def check_any_batches_running(cursor):
 
 def addnewbatch(date, cursor):
     sanitizedDate = int(f'{date}'.replace('-', ''))
-    print(f'date is checking {sanitizedDate}')
+    print(f'date is checking {sanitizedDate}\n')
     cursor.execute(f'''
    select * from batches ;
                    ''')
@@ -52,13 +52,18 @@ def addnewbatch(date, cursor):
 
 def check_msg(msg_date, cursor):
     getstatus = check_any_batches_running(cursor)
-    print(f'msg date in digit: {msg_date}')
     if getstatus[0] >= msg_date <= getstatus[1]:
         print('so its under the hood')
+        return 'during_planning_phase'
     elif getstatus[1] >= msg_date <= getstatus[3]:
         print('its show tym')
+        return 'during_project_phase'
     else:
         print('no batches found so ignoring')
+        # handle if result[4] is 1
+        # check if dev extended already then ok to comment updates
+        # else don't need to record add warning 'u didn't mention during project phase'
+        return 'after_deadline'
 
 
 def clear_batch(cursor):
@@ -78,7 +83,7 @@ def dbops(operation, args):
         if operation == 'check_batch':
             addnewbatch(args, cursor)
         if operation == 'check_is_msg_under_planning_phase':
-            check_msg(args, cursor)
+            return check_msg(args, cursor)
 
     except sqlite3.Error as error:
         print(f'error is : {error}')

@@ -1,6 +1,7 @@
 import logging
 from xml.etree.ElementTree import tostring
 
+import execution
 import db_management
 from telegram import ForceReply, Update
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
@@ -63,17 +64,18 @@ district = {
 print(district)
 
 
-def batchcreates(date):
+def batch_creates(date):
     db_management.dbops('check_batch', date)
 
 
-def checkMsg(msg_date):
+def check_msg(msg_date, update):
     date_to_string = str(msg_date)
     date_only = date_to_string[:10]
     print(f'msg date: {date_only}')
-    extracted = date_only.replace('-', '')
-    to_int = int(extracted)
-    db_management.dbops('check_is_msg_under_planning_phase', to_int)
+    extracted = int(date_only.replace('-', ''))
+    status = db_management.dbops('check_is_msg_under_planning_phase', extracted)
+    if status == 'during_planning_phase':
+        execution.msg_process(msg_date, update)
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -89,7 +91,7 @@ async def grp_msg(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if zero_dev_grp_id == current_id:
         print(
             f'msg:{update.message.from_user.username} {update.message.from_user.id}  and  {update.message.text} {update.message.date}\n')
-        checkMsg(update.message.date)
+        check_msg(update.message.date, update)
 
         # await  context.bot.send_message(chat_id=zero_dev_grp_id, text='ok')
     else:
@@ -111,7 +113,7 @@ async def create_batch_group(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     await  context.bot.send_message(chat_id=update.message.chat_id,
                                     text='remember not start a batch on month ends , need 2 day gap')
-    batchcreates(arg_text)
+    batch_creates(arg_text)
     # if tuple found in table  with matching date(id) then not need to add
 
 
