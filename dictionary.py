@@ -64,8 +64,14 @@ district = {
 print(district)
 
 
-def batch_creates(date):
-    db_management.dbops('check_batch', date)
+async def batch_creates(date, context, update):
+    status = db_management.dbops('check_batch', date)
+    if status == 'added_new_batch':
+        await  context.bot.send_message(chat_id=update.message.chat_id,
+                                        text='remember not start a batch on month ends , need 2 day gap')
+    if status == 'running':
+        await  context.bot.send_message(chat_id=update.message.chat_id,
+                                        text='running a batch currently')
 
 
 def check_msg(msg_date, update):
@@ -105,15 +111,18 @@ async def create_batch_group(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if tele_uid != tele_user_me:
         await context.bot.send_message(chat_id=update.message.chat_id, text='poda podaaaa')
 
+    if arg_text == 'clear' and arg_text != '':
+        db_management.dbops('clear_batch', '')
+        await  context.bot.send_message(chat_id=update.message.chat_id,
+                                        text='all db cleared')
+        return
     print(f'args {arg_text} and {tele_uid}')
     if not arg_text:
         await  context.bot.send_message(chat_id=update.message.chat_id,
                                         text='formate will be yyyy-mm-dd')
         return
 
-    await  context.bot.send_message(chat_id=update.message.chat_id,
-                                    text='remember not start a batch on month ends , need 2 day gap')
-    batch_creates(arg_text)
+    await  batch_creates(arg_text, context, update)
     # if tuple found in table  with matching date(id) then not need to add
 
 
