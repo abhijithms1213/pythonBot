@@ -67,7 +67,7 @@ print(district)
 
 
 async def batch_creates(date, context, update):
-    status =await db_management.dbops('check_batch', date)
+    status = await db_management.dbops('check_batch', date)
     if status == 'added_new_batch':
         await  context.bot.send_message(chat_id=update.message.chat_id,
                                         text='remember not start a batch on month ends , need 2 day gap')
@@ -140,22 +140,61 @@ async def create_batch_group(update: Update, context: ContextTypes.DEFAULT_TYPE)
     # if tuple found in table  with matching date(id) then not need to add
 
 
+def map_user(row):
+    columns = [
+        "tele_id", "user_name", "topic", "repository", "isExtended", "ExtDate",
+        "start", "end", "user_fullname", "user_firstname", "batch_id",
+        "tech_stack", "deadline_as_date"
+    ]
+    return dict(zip(columns, row))
+
+
 async def join_grp(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.message.chat.id
     user_name = update.message.chat.username
     user_fullname = update.message.chat.full_name
     user_first_name = update.message.chat.first_name
-    status = await db_management.dbops('check_is_user_already_present', user_id)
-    print(f'result is {status}')
-    if status is False:
+    status = await db_management.dbops('check_is_user_already_present', [user_id, context])
+    status_msg = status[0]
+    status_return_user = status[1]
+    if status_msg is False:
         print('to add to db ')
         status = await db_management.dbops('add_new_user_to_db', [user_id, user_name, user_fullname, user_first_name])
         if status:
             await context.bot.send_message(chat_id=update.message.chat_id,
                                            text='hooray u joined in our group , go and start your dev journey')
-    else:
+    elif status_msg == 'exist':
         print('found user so not need to add anymore send a already added warning')
         await context.bot.send_message(chat_id=update.message.chat_id, text=f'already u joined , explore our group')
+    elif status_msg == 'updated_old':
+        user = map_user(status_return_user)
+        print('send any message about his record ')
+        await context.bot.send_message(chat_id=update.message.chat_id, text=f'already u joined , explore our group')
+        await context.bot.send_message(
+            chat_id=update.message.chat_id,
+            text=f"""
+        🎉 *Hooray! You're Successfully Registered* 🎉
+        
+        Hey {user["user_name"]} 👋  
+        We didn’t forget you 😉
+        
+        ━━━━━━━━━━━━━━━━━━━
+        📌 *Project Details*
+        ━━━━━━━━━━━━━━━━━━━
+        📚 *Topic:* {user["topic"]}
+        🔗 *Repository:* {user["repository"]}
+        
+        🛠️ *Tech Stack:* {user["tech_stack"]}
+        
+        🚀 *Start Date:* {user["start"]}
+        ⏳ *Deadline (days):* {user["end"]}
+        
+        ━━━━━━━━━━━━━━━━━━━
+        💪 Stay consistent. Build daily. Win big.
+        ━━━━━━━━━━━━━━━━━━━
+        """,
+            parse_mode="Markdown"
+        )
 
 
 async def help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

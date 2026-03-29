@@ -1,6 +1,5 @@
 import sqlite3
 from datetime import datetime, timedelta
-from pickle import EMPTY_LIST
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 
 
@@ -114,7 +113,7 @@ def add_new_user_to_db(args: list, cursor):
     user_fullname = args[2]
     user_first_name = args[3]
     query = f'''
-    insert into devs values ('{user_id}','{user_name}','','',0,0,0,0,'{user_fullname}','{user_first_name}',0,'');
+    insert into devs values ('{user_id}','{user_name}','','',0,0,0,0,'{user_fullname}','{user_first_name}',0,'',0);
     '''
     cursor.execute(query)
     query = f'''
@@ -126,20 +125,53 @@ def add_new_user_to_db(args: list, cursor):
     return True
 
 
-def check_is_user_already_present(args, cursor):
-    user_id = args
+async def check_is_user_already_present(args, cursor):
+    user_id = args[0]
+    context: ContextTypes.DEFAULT_TYPE = args[1]
+    chat_usr = await context.bot.get_chat(chat_id=user_id)
+    first_name = chat_usr.first_name
+    fullname = chat_usr.full_name
+    user_name = chat_usr.username
+    print(f'user id : {user_id} type:{type(user_id)} name is {user_name} , first: {first_name},full : {fullname}')
+    included_username = f'@{user_name}'
+
+
     query = f'''
-    select * from devs where tele_id = '{user_id}';
+    select * from devs where tele_id = '{user_id}' or user_name = '{included_username}';
     '''
     cursor.execute(query)
-    result: list = cursor.fetchall()
-    print(f'result {result}')
+    result: list = cursor.fetchone()
+
+
+
+
+    # query = f'''
+    # select * from devs where user_name = '{included_username}';
+    # '''
+    # cursor.execute(query)
+    # result: list = cursor.fetchone()
+    print(f'result {result} and ')
+    # print(f'result {result} and user id type: {type(result[0])} and id {result[0]}')
     if not result:
         print('false as not found record so adding fresh user')
-        return False
+        return [False,'']
     else:
-        print('record found returning')
-        return result
+        if str(user_id) == result[0]:  # means same id so already registered
+            print('record found returning')
+            return ['exist', result]
+        else:
+            print('else working in /join command means different')
+            query = f'''
+                update devs set tele_id= '{user_id}',user_fullname = '{fullname}',user_firstname= '{first_name}' where user_name = '{included_username}';
+            '''
+            cursor.execute(query)
+            query = f'''
+                 select * from devs where user_name = '{included_username}';
+            '''
+            cursor.execute(query)
+            result: list = cursor.fetchone()
+            print(f'result {result}')
+            return ['updated_old', result]
 
 
 async def add_dev_to_db(args, cursor):
@@ -149,7 +181,12 @@ async def add_dev_to_db(args, cursor):
 
     # user details
     user_id = args[0]
-    chat_usr = await context.bot.get_chat(chat_id=user_id)
+
+    if not isinstance(user_id, str):
+        chat_usr = await context.bot.get_chat(chat_id=user_id)
+        first_name = chat_usr.first_name
+        fullname = chat_usr.full_name
+        user_name = chat_usr.username
 
     topic = user_dictionary['topic']
     deadline = user_dictionary['deadline']
@@ -158,44 +195,50 @@ async def add_dev_to_db(args, cursor):
     tech_stack = user_dictionary['tech']
     #  add start end dates balance fields
 
-    first_name = chat_usr.first_name
-    fullname = chat_usr.full_name
-    user_name = chat_usr.username
+    print(f'type of user id: {type(user_id)} and user id: is {user_id}')
 
-    if user_id.startswith('@'):
+    if isinstance(user_id, str) and user_id.startswith('@'):
         # checking in db is user exist
+        print('inside if of @')
+        # user_id_without_prefix=
         query = f'''
-        select * from devs where user_name = {user_id};
+        select * from devs where user_name = '{user_id}';
         '''
         cursor.execute(query)
-        result: list = cursor.fetchall()
+        result: list = cursor.fetchone()
         print(f'result {result}')
         if not result:
+            print('inside if of @ and result [] not')
             # means not joined using /join so tell him to join but need to add date with user_id as user_name+batch abhi_20260228
             user_joined_name = f'{user_id}_{current_batch[0]}'
             query = f'''
-            insert into (tele_id,user_name, topic, repository, isExtended, ExtDate, start, end, user_fullname, user_firstname, batch_id, tech_stack,deadline_as_date) devs values ('{user_joined_name}','{user_id}','{topic}','{github_repo}',0,0,{current_batch[0]},{deadline},'','',{current_batch[0]}, '{tech_stack}',{deadline_full});
+            insert into devs (tele_id,user_name, topic, repository, isExtended, ExtDate, start, end, user_fullname, user_firstname, batch_id, tech_stack,deadline_as_date)  values ('{user_joined_name}','{user_id}','{topic}','{github_repo}',0,0,{current_batch[0]},{deadline},'','',{current_batch[0]}, '{tech_stack}',{deadline_full});
             '''
             cursor.execute(query)
             print('added this user but here means not joined using /join so tell him to join but recorded')
-            # also print while msg ing in /join about the user's joining detail
-            return [1, result[1]]
+            return [1,user_id]
         else:
+            print('inside else case of @')
             user_joined_name = f'{user_id}_{current_batch[0]}'
             # if joined from bot , the user we already filled with user_id , in else also filled with name+_batch_id
             original_user_id = result[0]
-
             if original_user_id == user_joined_name:  # it means that user didn't joined , after joining the current batch
+                print('inside @ and equal names found @abc_24')
+                print('user still didnt updated after my warning')
+                return [3, result[1]]
+
+            else:  # means user id exist
                 if not result[2] and not result[3]:
-                    # only difference is we use result[0] as user id because in this case we cannot get uid from mention
+                    print('inside @ and repository and topic found as empty')
                     query = f'''
-                     update devs set topic= '{topic}',repository = '{github_repo}',start= {current_batch[0]},end = {deadline},batch_id = {current_batch[0]},tech_stack={tech_stack} ,deadline_as_date ={current_batch[5]} where tele_id = '{result[0]}';
+                     update devs set topic = '{topic}',repository = '{github_repo}',start= {current_batch[0]},end = {deadline},batch_id = {current_batch[0]},tech_stack={tech_stack} ,deadline_as_date ={current_batch[5]} where tele_id = '{result[0]}';
                     '''
                     cursor.execute(query)
-                    print('user still didnt updated after my warning')
+                    print('updated existing user in current batch')
                     return [1, result[0]]
                 #  next setup returning each dev based on categorised for msging
                 else:
+                    print('inside @ and already u are in batch')
                     print('found already in batch so not adding')
                     return [2, result[0]]
     else:
@@ -259,7 +302,7 @@ async def dbops(operation, args):
         if operation == 'add_dev_to_db':
             return await add_dev_to_db(args, cursor)
         if operation == 'check_is_user_already_present':
-            return check_is_user_already_present(args, cursor)
+            return await check_is_user_already_present(args, cursor)
         if operation == 'add_new_user_to_db':
             return add_new_user_to_db(args, cursor)
 

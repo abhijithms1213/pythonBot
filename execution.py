@@ -26,10 +26,10 @@ async def mention_check(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await message.reply_text(f"Username mentioned: {mention_text}")
                 mentions.append(mention_text)
 
-    if not mentions:
-        mentions.append(update.message.from_user.id)
-    else:
-        mentions.append(update.message.from_user.id)
+    # if not mentions:
+    #     mentions.append(update.message.from_user.id)
+    # else:
+    #     mentions.append(update.message.from_user.id)
     return mentions
 
 
@@ -83,6 +83,9 @@ async def msg_process(msg_date, update: Update, context: ContextTypes.DEFAULT_TY
                                 if current_batch is None:
                                     return 'invalid'
                                 else:
+                                    # adding team id
+
+
                                     batch_start = str(current_batch[0])  # e.g. 20260327
                                     date_obj = datetime.strptime(batch_start, "%Y%m%d")
 
@@ -107,15 +110,19 @@ async def msg_process(msg_date, update: Update, context: ContextTypes.DEFAULT_TY
                                     developer_id_return = return_val[1]
                                     status = return_val[0]
                                     # 0 means we returned telegram_id and added to db fully ,
-                                    # 1 is username returned, and we added details to db but join using bot,
+                                    # 1 is username returned, and we added details to db but  must join dev using bot,
                                     # 2 is already found he is joined in ths batch so not going to add
+                                    # 3 means didn't joined even after warnings
                                     if status == 0:
                                         dev_currently_joined.append(developer_id_return)
-                                        print('status means new user add entire new user with details')
+                                        print('status means new user add entire new user with details or updated our old dev')
                                         # add_user(user_id)
                                     elif status == 1:
                                         dev_not_joined.append(developer_id_return)
-                                        print('found @ in that for loop msg_process method')
+                                        print('added user with user_name @ , so highly recommended to join')
+                                    elif status == 3:
+                                        dev_not_joined.append(developer_id_return)
+                                        print('found user didnt updated in /join')
                                     else:
                                         dev_already_joined.append(developer_id_return)
                                         print("found user so now don't update")
