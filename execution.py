@@ -1,4 +1,5 @@
 from telegram import ForceReply, Update
+from datetime import datetime, timedelta
 import re
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 import operator as op
@@ -44,14 +45,10 @@ async def msg_process(msg_date, update: Update, context: ContextTypes.DEFAULT_TY
     # explicitly find GitHub repo link & mentions
     github_url = 'https://github.com/'
     github_repo: str
-    returnValue = 'false'
-
-    # pattern = r"'([^']*)'|\"([^\"]*)\""
-    class user_dict(TypedDict):
-        user_tele_id: int
-        deadline: int
-        topic: str
-        github_repo: str
+    # listing out users whoever joined, clear list after this whole message
+    dev_not_joined: list = []
+    dev_already_joined: list = []
+    dev_currently_joined: list = []
 
     if op.contains(lower_msg, find_starting):
         deadline_match = re.search(r'/deadline\s*(\d+)', lower_msg)
@@ -62,28 +59,35 @@ async def msg_process(msg_date, update: Update, context: ContextTypes.DEFAULT_TY
                 print('deadline found as invalid')
                 return 'invalid'
             if op.contains(lower_msg, find_topic):
-                topic = str(re.findall('"([^"]*)"', lower_msg))
+                # topic = str(re.findall('"([^"]*)"', lower_msg)).replace("'", "").replace('[', '').replace(']', '')
+                topic = re.search(r'/topic\s*([^\n]+)', lower_msg).group(1).strip()
                 if not topic:
-                    print(f'quotes didnt added{topic}')
+                    print(f'topic not found')
                     return 'invalid'
                 else:
-                    tech_stack = re.search(r'/tech\s*(\d+)', lower_msg)
+                    print(f'topic is : {topic}')
+                    tech_stack = re.search(r'/tech\s*([^\n]+)', lower_msg)
                     if tech_stack:
-                        tech = tech_stack.group(1)
-                        print(f'topic is : {topic}')
+                        tech = tech_stack.group(1).strip()
+                        print(f'tech is : {tech}')
                         for link in lower_split:
                             if link.startswith(github_url):
                                 github_repo = link
                                 print(f'its all set and valid repo is {github_repo}')
                                 #  get mentions from the message
                                 mentions = await mention_check(update, context)
-                                print(f'mentions in loop {mentions}')
-                                current_batch = db_management.dbops('get_current_batch', '')
-                                print(f'status: {current_batch}')
+                                current_batch = await db_management.dbops('get_current_batch', '')
+                                print(f'batch status : {current_batch}')
                                 if current_batch is None:
                                     return 'invalid'
                                 else:
-                                    deadline = current_batch[0] + current_batch[3]
+                                    batch_start = str(current_batch[0])  # e.g. 20260327
+                                    date_obj = datetime.strptime(batch_start, "%Y%m%d")
+
+                                    deadline_date = date_obj + timedelta(days=int(deadline))
+
+                                    deadline_full = deadline_date.strftime("%Y%m%d")  # 20260410
+                                    print(f"deadline full : {deadline_full}")
                                     print(
                                         f'batch info : {current_batch[0]} and deadline: {current_batch[3]}')  # i currently at this pos.
 
@@ -94,23 +98,36 @@ async def msg_process(msg_date, update: Update, context: ContextTypes.DEFAULT_TY
                                                  'github_repo': github_repo,
                                                  'tech': tech
                                                  }
-                                    return_val = db_management.dbops('add_dev_to_db',
-                                                                     [user_id, user_dict, context, current_batch])
+                                    return_val = await db_management.dbops('add_dev_to_db',
+                                                                           [user_id, user_dict, context, current_batch])
                                     print(f'result is {return_val}')
-                                    if return_val == 'Added':
+                                    developer_id_return = return_val[1]
+                                    status = return_val[0]
+                                    # 0 means we returned telegram_id and added to db fully ,
+                                    # 1 is username returned, and we added details to db but join using bot,
+                                    # 2 is already found he is joined in ths batch so not going to add
+                                    if status == 0:
+                                        dev_currently_joined.append(developer_id_return)
                                         print('status means new user add entire new user with details')
                                         # add_user(user_id)
-                                    elif return_val == '@':
-                                        print('found @ in that for loop msg_procuess method')
+                                    elif status == 1:
+                                        dev_not_joined.append(developer_id_return)
+                                        print('found @ in that for loop msg_process method')
                                     else:
+                                        dev_already_joined.append(developer_id_return)
                                         print("found user so now don't update")
 
-                                # call from db : add_new_user_to_db
+                                # clear list after all msg sent
+                                print(
+                                    f'devs not: {dev_not_joined} & already joined {dev_already_joined} & new joined: {dev_currently_joined}')
+                                dev_not_joined.clear()
+                                dev_already_joined.clear()
+                                dev_currently_joined.clear()
                                 return 'valid'
                             else:
                                 continue
                     else:
-                        print('tech stach not found')
+                        print('tech stack not found')
                         return 'invalid'
 
                 print('not found github link')

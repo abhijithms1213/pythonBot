@@ -67,7 +67,7 @@ print(district)
 
 
 async def batch_creates(date, context, update):
-    status = db_management.dbops('check_batch', date)
+    status =await db_management.dbops('check_batch', date)
     if status == 'added_new_batch':
         await  context.bot.send_message(chat_id=update.message.chat_id,
                                         text='remember not start a batch on month ends , need 2 day gap')
@@ -81,7 +81,7 @@ async def check_msg(msg_date, update, context):
     date_only = date_to_string[:10]
     print(f'msg date: {date_only}')
     extracted = int(date_only.replace('-', ''))
-    status = db_management.dbops('check_is_msg_under_planning_phase', extracted)
+    status = await db_management.dbops('check_is_msg_under_planning_phase', extracted)
     if status == 'during_planning_phase':
         await  execution.msg_process(msg_date, update, context)
 
@@ -126,7 +126,7 @@ async def create_batch_group(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await context.bot.send_message(chat_id=update.message.chat_id, text='poda podaaaa')
 
     if arg_text == 'clear' and arg_text != '':
-        db_management.dbops('clear_batch', '')
+        await db_management.dbops('clear_batch', '')
         await  context.bot.send_message(chat_id=update.message.chat_id,
                                         text='all db cleared')
         return
@@ -145,11 +145,11 @@ async def join_grp(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_name = update.message.chat.username
     user_fullname = update.message.chat.full_name
     user_first_name = update.message.chat.first_name
-    status = db_management.dbops('check_is_user_already_present', user_id)
+    status = await db_management.dbops('check_is_user_already_present', user_id)
     print(f'result is {status}')
     if status is False:
         print('to add to db ')
-        status = db_management.dbops('add_new_user_to_db', [user_id, user_name, user_fullname, user_first_name])
+        status = await db_management.dbops('add_new_user_to_db', [user_id, user_name, user_fullname, user_first_name])
         if status:
             await context.bot.send_message(chat_id=update.message.chat_id,
                                            text='hooray u joined in our group , go and start your dev journey')
