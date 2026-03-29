@@ -28,6 +28,8 @@ async def mention_check(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not mentions:
         mentions.append(update.message.from_user.id)
+    else:
+        mentions.append(update.message.from_user.id)
     return mentions
 
 
@@ -94,6 +96,7 @@ async def msg_process(msg_date, update: Update, context: ContextTypes.DEFAULT_TY
                                 for user_id in mentions:
                                     user_dict = {'user_tele_id': user_id,
                                                  'deadline': int(deadline),
+                                                 'deadline_full': current_batch[5],
                                                  'topic': topic,
                                                  'github_repo': github_repo,
                                                  'tech': tech
@@ -123,6 +126,7 @@ async def msg_process(msg_date, update: Update, context: ContextTypes.DEFAULT_TY
                                 dev_not_joined.clear()
                                 dev_already_joined.clear()
                                 dev_currently_joined.clear()
+                                print('all lists cleared')
                                 return 'valid'
                             else:
                                 continue

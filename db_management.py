@@ -153,6 +153,7 @@ async def add_dev_to_db(args, cursor):
 
     topic = user_dictionary['topic']
     deadline = user_dictionary['deadline']
+    deadline_full = user_dictionary['deadline_full']
     github_repo = user_dictionary['github_repo']
     tech_stack = user_dictionary['tech']
     #  add start end dates balance fields
@@ -161,7 +162,7 @@ async def add_dev_to_db(args, cursor):
     fullname = chat_usr.full_name
     user_name = chat_usr.username
 
-    if user_id is int and user_id.startswith('@'):
+    if user_id.startswith('@'):
         # checking in db is user exist
         query = f'''
         select * from devs where user_name = {user_id};
@@ -173,31 +174,36 @@ async def add_dev_to_db(args, cursor):
             # means not joined using /join so tell him to join but need to add date with user_id as user_name+batch abhi_20260228
             user_joined_name = f'{user_id}_{current_batch[0]}'
             query = f'''
-            insert into (tele_id,user_name, topic, repository, isExtended, ExtDate, start, end, user_fullname, user_firstname, batch_id, tech_stack) devs values ('{user_joined_name}','{user_id}','{topic}','{github_repo}',0,0,{current_batch[0]},{deadline},'','',{current_batch[0], f'{tech_stack}'});
+            insert into (tele_id,user_name, topic, repository, isExtended, ExtDate, start, end, user_fullname, user_firstname, batch_id, tech_stack,deadline_as_date) devs values ('{user_joined_name}','{user_id}','{topic}','{github_repo}',0,0,{current_batch[0]},{deadline},'','',{current_batch[0]}, '{tech_stack}',{deadline_full});
             '''
             cursor.execute(query)
             print('added this user but here means not joined using /join so tell him to join but recorded')
             # also print while msg ing in /join about the user's joining detail
             return [1, result[1]]
         else:
-            if str(result[2]) and str(result[3]) == '':
-                # only difference is we use result[0] as user id because in this case we cannot get uid from mention
-                query = f'''
-                 update devs set topic= '{topic}',repository = '{github_repo}',start= {current_batch[0]},end = {deadline},batch_id = {current_batch[0]},tech_stack={tech_stack} where tele_id = '{result[0]}';
-                '''
-                cursor.execute(query)
-                print('updated existing user with not joined current batch')
-                return [0, result[0]]
-            #  next setup returning each dev based on categorised for msging
-            else:
-                print('found already in batch so not adding')
-                return [2, result[0]]
+            user_joined_name = f'{user_id}_{current_batch[0]}'
+            # if joined from bot , the user we already filled with user_id , in else also filled with name+_batch_id
+            original_user_id = result[0]
+
+            if original_user_id == user_joined_name:  # it means that user didn't joined , after joining the current batch
+                if not result[2] and not result[3]:
+                    # only difference is we use result[0] as user id because in this case we cannot get uid from mention
+                    query = f'''
+                     update devs set topic= '{topic}',repository = '{github_repo}',start= {current_batch[0]},end = {deadline},batch_id = {current_batch[0]},tech_stack={tech_stack} ,deadline_as_date ={current_batch[5]} where tele_id = '{result[0]}';
+                    '''
+                    cursor.execute(query)
+                    print('user still didnt updated after my warning')
+                    return [1, result[0]]
+                #  next setup returning each dev based on categorised for msging
+                else:
+                    print('found already in batch so not adding')
+                    return [2, result[0]]
     else:
         query = f'''
         select * from devs where tele_id = '{user_id}';
         '''
         cursor.execute(query)
-        result: list = cursor.fetchall()
+        result: list = cursor.fetchone()
         print(f'result {result}')
         if not result:
             print('not found any records so add fresh')
@@ -214,25 +220,27 @@ async def add_dev_to_db(args, cursor):
             tech_stack    : {tech_stack}
             """)
             query = f'''
-            insert into devs ( tele_id, user_name, topic, repository, isExtended, ExtDate,start, end, user_fullname, user_firstname, batch_id, tech_stack) values ('{user_id}','{user_name}','{topic}','{github_repo}',0,0,{current_batch[0]},{deadline},'{fullname}','{first_name}',{current_batch[0]}, '{tech_stack}');
+            insert into devs ( tele_id, user_name, topic, repository, isExtended, ExtDate,start, end, user_fullname, user_firstname, batch_id, tech_stack,deadline_as_date) values ('{user_id}','{user_name}','{topic}','{github_repo}',0,0,{current_batch[0]},{deadline},'{fullname}','{first_name}',{current_batch[0]}, '{tech_stack}',{deadline_full});
             '''
             cursor.execute(query)
-            print(f'query : {query}')
             return [0, user_id]
         else:
-            if str(result[2]) and str(result[3]) == '':
+            print(f'under else : tpic: {result[2]} and {result[3]}')
+            if not result[2] and not result[3]:
+                print('2 and 3 are empty')
+                # when finishing time we clear all the user's these project related fields (before clearing we move it to finished table)
                 query = f'''
-                 update devs set topic= '{topic}',repository = '{github_repo}',start= {current_batch[0]},end = {deadline},batch_id = {current_batch[0]},tech_stack={tech_stack} where tele_id = '{user_id}';
-                '''
+                     update devs set topic= '{topic}',repository = '{github_repo}',start= {current_batch[0]},end = {deadline},batch_id = {current_batch[0]},tech_stack='{tech_stack}',deadline_as_date ={current_batch[5]} where tele_id = '{user_id}';
+                    '''
                 cursor.execute(query)
                 print('updated existing user in current batch')
                 return [0, user_id]
             else:
                 print('found already in batch so not adding')
                 return [2, user_id]
-        # if result[0] is None:
-        #     print('I found @ mention, and it must add through /join')
-        #     return '@'
+    # if result[0] is None:
+    #     print('I found @ mention, and it must add through /join')
+    #     return '@'
 
 
 async def dbops(operation, args):
@@ -267,3 +275,5 @@ async def dbops(operation, args):
 
 if __name__ == '__main__':
     dbops('clear_batch', '')
+
+#  test query : update devs set topic='',repository=''  where tele_id='1054613006'; for already added in user list but new to batch
