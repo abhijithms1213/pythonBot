@@ -1,4 +1,6 @@
 import sqlite3
+from pickle import EMPTY_LIST
+from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 
 
 def check_any_batches_running(cursor):
@@ -14,6 +16,27 @@ def check_any_batches_running(cursor):
         # print(
         # f'found in db Data => date: {result[0]} , planning_phase: {result[1]} isCurrent: {result[2]} , batch-deadLine: {result[3]}')
         return result
+
+
+def check_msg(msg_date, cursor):
+    getstatus = check_any_batches_running(cursor)
+    print(f'status: {getstatus} and msg date: {msg_date}')
+    if getstatus is None:
+        return ''
+    deadline = getstatus[0] + getstatus[3]
+    if msg_date >= getstatus[0] <= getstatus[1]:
+        print('so its under the hood')
+        return 'during_planning_phase'
+    elif getstatus[1] >= msg_date <= deadline:
+        print('its show tym')
+        return 'during_project_phase'
+    elif msg_date > deadline:
+        print('after deadline worked')
+        # handle if result[4] is 1
+        # check if dev extended already then ok to comment updates
+        # else don't need to record add warning 'u didn't mention during project phase'
+        return 'after_deadline'
+    return None
 
 
 def addnewbatch(date, cursor):
@@ -53,32 +76,98 @@ def addnewbatch(date, cursor):
     return 'added_new_batch'
 
 
-def check_msg(msg_date, cursor):
-    getstatus = check_any_batches_running(cursor)
-    print(f'status: {getstatus}')
-    if getstatus is None:
-        return ''
-    deadline = getstatus[0] + getstatus[3]
-    if getstatus[0] >= msg_date <= getstatus[1]:
-        print('so its under the hood')
-        return 'during_planning_phase'
-    elif getstatus[1] >= msg_date <= deadline:
-        print('its show tym')
-        return 'during_project_phase'
-    elif msg_date > deadline:
-        print('after deadline worked')
-        # handle if result[4] is 1
-        # check if dev extended already then ok to comment updates
-        # else don't need to record add warning 'u didn't mention during project phase'
-        return 'after_deadline'
-
-
 def clear_batch(cursor):
     query = '''
     delete from batches;
     '''
     cursor.execute(query)
     print('all clear')
+
+
+# get user id by /join command
+# +---------+-----------+-----------+------------+------------+---------+-------+-----+---------------+----------------+----------+------------+
+# | tele_id | user_name | topic     | repository | isExtended | ExtDate | start | end | user_fullname | user_firstname | batch_id | tech_stack |
+# +---------+-----------+-----------+------------+------------+---------+-------+-----+---------------+----------------+----------+------------+
+# | 1       | jithu     | new topic | new_repo   | 0          | 12      | 10    | 20  | abhi          | jith           | 1        | <null>     |
+# +---------+-----------+-----------+------------+------------+---------+-------+-----+---------------+----------------+----------+------------+
+
+def add_new_user_to_db(args: list, cursor):
+    user_id = args[0]
+    user_name = args[1]
+    user_fullname = args[2]
+    user_first_name = args[3]
+    query = f'''
+    insert into devs values ({user_id},'{user_name}','','',0,0,0,0,'{user_fullname}','{user_first_name}');
+    '''
+    cursor.execute(query)
+    query = f'''
+        select tele_id,user_name,user_fullname,user_firstname,topic,repository,isExtended,ExtDate,start,end from devs where tele_id = {user_id};
+        '''
+    cursor.execute(query)
+    result = cursor.fetchone()
+    print(f'result {result}')
+    return True
+
+
+def check_is_user_already_present(args, cursor):
+    user_id = args
+    query = f'''
+    select * from devs where tele_id = {user_id};
+    '''
+    cursor.execute(query)
+    result: list = cursor.fetchall()
+    print(f'result {result}')
+    if not result:
+        print('not found any records so add fresh')
+        return False
+    else:
+        print('record found returning')
+        return result
+
+
+async def add_dev_to_db(args, cursor):
+    user_dictionary = args[1]
+    context: ContextTypes.DEFAULT_TYPE = args[2]
+    current_batch = args[3]
+
+    # user details
+    user_id = args[0]
+    chat_usr = await context.bot.get_chat(chat_id=user_id)
+
+    topic = user_dictionary['topic']
+    deadline = user_dictionary['deadline']
+    github_repo = user_dictionary['github_repo']
+    tech_stack = user_dictionary['tech']
+    #  add start end dates balance fields
+
+    first_name = chat_usr.first_name
+    fullname = chat_usr.full_name
+    user_name = chat_usr.username
+
+    if user_id.startswith('@'):
+        query = f'''
+        select * from devs where user_name = {user_id};
+        '''
+    else:
+        query = f'''
+        select * from devs where tele_id = {user_id};
+        '''
+        cursor.execute(query)
+        result: list = cursor.fetchall()
+        print(f'result {result}')
+        if not result:
+            print('not found any records so add fresh')
+            query = f'''
+            insert into devs values ({user_id},'{user_name}','{topic}','{github_repo}',0,0,{current_batch[0]},{deadline},'{fullname}','{first_name}',{current_batch[0], f'{tech_stack}'});
+            '''
+            cursor.execute(query)
+            return 'Added'
+        else:
+            print('record found returning')
+            return result
+        # if result[0] is None:
+        #     print('i found @ mention and it must add through /join')
+        #     return '@'
 
 
 def dbops(operation, args):
@@ -89,8 +178,17 @@ def dbops(operation, args):
             clear_batch(cursor)
         if operation == 'check_batch':
             return addnewbatch(args, cursor)
+        if operation == 'get_current_batch':
+            return check_any_batches_running(cursor)
         if operation == 'check_is_msg_under_planning_phase':
             return check_msg(args, cursor)
+        # user join group related
+        if operation == 'add_dev_to_db':
+            return add_dev_to_db(args, cursor)
+        if operation == 'check_is_user_already_present':
+            return check_is_user_already_present(args, cursor)
+        if operation == 'add_new_user_to_db':
+            return add_new_user_to_db(args, cursor)
 
     except sqlite3.Error as error:
         print(f'error is : {error}')

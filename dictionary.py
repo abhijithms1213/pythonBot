@@ -1,5 +1,6 @@
 import logging
 from xml.etree.ElementTree import tostring
+from telegram.constants import ParseMode
 
 import execution
 import db_management
@@ -58,7 +59,8 @@ TELEGRAM_BOT_TOKEN_TEST = os.getenv("TELEGRAM_BOT_TOKEN_TEST")
 district = {
     "brand": "Ford",
     "model": "Mustang",
-    "year": 1964
+    "year": 1964,
+    "type": str
 }
 
 print(district)
@@ -74,30 +76,42 @@ async def batch_creates(date, context, update):
                                         text='running a batch currently')
 
 
-def check_msg(msg_date, update):
+async def check_msg(msg_date, update, context):
     date_to_string = str(msg_date)
     date_only = date_to_string[:10]
     print(f'msg date: {date_only}')
     extracted = int(date_only.replace('-', ''))
     status = db_management.dbops('check_is_msg_under_planning_phase', extracted)
     if status == 'during_planning_phase':
-        execution.msg_process(msg_date, update)
-
-
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    text_caps = ' '.join(context.args).upper()
-    print(text_caps)
-    await context.bot.send_message(chat_id=update.message.chat_id, text=text_caps)
-    print(f' id: {update.effective_chat.id} user: {update.message.chat} and {update.message.text}')
+        await  execution.msg_process(msg_date, update, context)
 
 
 async def grp_msg(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    print(
+        f'args:{update.message.text} user: name: {update.message.from_user.username} id:{update.message.from_user.id}')
     zero_dev_grp_id = -5287913183
     current_id = update.message.chat.id
     if zero_dev_grp_id == current_id:
-        print(
-            f'msg:{update.message.from_user.username} {update.message.from_user.id}  and  {update.message.text} {update.message.date}\n')
-        check_msg(update.message.date, update)
+        #  check mention working or not
+        if update.message.text == 'mention':
+            chat_id = update.effective_chat.id
+
+            # user_id_no_username = 1536580544  # aleena
+            user_id = 656166832  # Replace with a user ID who does not : aravind
+            chat_usr = await context.bot.get_chat(chat_id=user_id)
+            first_name = chat_usr.first_name
+            print(f'first name:{first_name} id: {user_id}')
+
+            # Construct the message using HTML parse mode
+            message_text = f'Hello <a href="tg://user?id={user_id}">{first_name}</a> 👋'
+            # Send the message with HTML parse mode
+            await context.bot.send_message(
+                chat_id=zero_dev_grp_id,
+                text=message_text,
+                parse_mode=ParseMode.HTML
+            )
+            return
+        await check_msg(update.message.date, update, context)
 
         # await  context.bot.send_message(chat_id=zero_dev_grp_id, text='ok')
     else:
@@ -126,8 +140,33 @@ async def create_batch_group(update: Update, context: ContextTypes.DEFAULT_TYPE)
     # if tuple found in table  with matching date(id) then not need to add
 
 
+async def join_grp(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user_id = update.message.chat.id
+    user_name = update.message.chat.username
+    user_fullname = update.message.chat.full_name
+    user_first_name = update.message.chat.first_name
+    status = db_management.dbops('check_is_user_already_present', user_id)
+    print(f'result is {status}')
+    if status is False:
+        print('to add to db ')
+        status = db_management.dbops('add_new_user_to_db', [user_id, user_name, user_fullname, user_first_name])
+        if status:
+            await context.bot.send_message(chat_id=update.message.chat_id,
+                                           text='hooray u joined in our group , go and start your dev journey')
+    else:
+        print('found user so not need to add anymore send a already added warning')
+        await context.bot.send_message(chat_id=update.message.chat_id, text=f'already u joined , explore our group')
+
+
 async def help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     print('hai')
+
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    text_caps = ' '.join(context.args).upper()
+    print(text_caps)
+    await context.bot.send_message(chat_id=update.message.chat_id, text=text_caps)
+    print(f' id: {update.effective_chat.id} user: {update.message.chat} and {update.message.text}')
 
 
 def pybot():
@@ -136,6 +175,7 @@ def pybot():
     application = Application.builder().token(TELEGRAM_BOT_TOKEN_TEST).build()
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help))
+    application.add_handler(CommandHandler("join", join_grp))
     application.add_handler(CommandHandler("grp", create_batch_group))
     grp_msg_handler = MessageHandler(filters.TEXT & (~filters.COMMAND), grp_msg)
     application.add_handler(grp_msg_handler)
