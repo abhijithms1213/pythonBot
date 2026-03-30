@@ -3,6 +3,19 @@ from datetime import datetime, timedelta
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 
 
+async def check_team_id_unique(args, cursor):
+    team_id = args
+    query = f'''
+    select * from teams where team_id = {team_id};
+    '''
+    cursor.execute(query)
+    result = cursor.fetchone()
+    if result:
+        return False
+    else:
+        return True
+
+
 def check_any_batches_running(cursor):
     query = '''
     select * from batches where isCurrent = 1;
@@ -135,26 +148,16 @@ async def check_is_user_already_present(args, cursor):
     print(f'user id : {user_id} type:{type(user_id)} name is {user_name} , first: {first_name},full : {fullname}')
     included_username = f'@{user_name}'
 
-
     query = f'''
     select * from devs where tele_id = '{user_id}' or user_name = '{included_username}';
     '''
     cursor.execute(query)
-    result: list = cursor.fetchone()
+    result = cursor.fetchone()
 
-
-
-
-    # query = f'''
-    # select * from devs where user_name = '{included_username}';
-    # '''
-    # cursor.execute(query)
-    # result: list = cursor.fetchone()
     print(f'result {result} and ')
-    # print(f'result {result} and user id type: {type(result[0])} and id {result[0]}')
     if not result:
         print('false as not found record so adding fresh user')
-        return [False,'']
+        return [False, '']
     else:
         if str(user_id) == result[0]:  # means same id so already registered
             print('record found returning')
@@ -169,8 +172,15 @@ async def check_is_user_already_present(args, cursor):
                  select * from devs where user_name = '{included_username}';
             '''
             cursor.execute(query)
-            result: list = cursor.fetchone()
-            print(f'result {result}')
+
+            # for add updated user_id to teams table
+            query = f'''
+               update teams set devs_id='{user_id}' where devs_id = ('{included_username}');
+            '''
+            print(f'query of team search {query}')
+            cursor.execute(query)
+            result_teams = cursor.fetchone()
+            print(f'resulted team {result_teams}')
             return ['updated_old', result]
 
 
@@ -193,6 +203,7 @@ async def add_dev_to_db(args, cursor):
     deadline_full = user_dictionary['deadline_full']
     github_repo = user_dictionary['github_repo']
     tech_stack = user_dictionary['tech']
+    team_id = user_dictionary['team_id']
     #  add start end dates balance fields
 
     print(f'type of user id: {type(user_id)} and user id: is {user_id}')
@@ -212,11 +223,11 @@ async def add_dev_to_db(args, cursor):
             # means not joined using /join so tell him to join but need to add date with user_id as user_name+batch abhi_20260228
             user_joined_name = f'{user_id}_{current_batch[0]}'
             query = f'''
-            insert into devs (tele_id,user_name, topic, repository, isExtended, ExtDate, start, end, user_fullname, user_firstname, batch_id, tech_stack,deadline_as_date)  values ('{user_joined_name}','{user_id}','{topic}','{github_repo}',0,0,{current_batch[0]},{deadline},'','',{current_batch[0]}, '{tech_stack}',{deadline_full});
+            insert into devs (tele_id,user_name, topic, repository, isExtended, ExtDate, start, end, user_fullname, user_firstname, batch_id, tech_stack,deadline_as_date,team_id)  values ('{user_joined_name}','{user_id}','{topic}','{github_repo}',0,0,{current_batch[0]},{deadline},'','',{current_batch[0]}, '{tech_stack}',{deadline_full},{team_id});
             '''
             cursor.execute(query)
             print('added this user but here means not joined using /join so tell him to join but recorded')
-            return [1,user_id]
+            return [1, user_id]
         else:
             print('inside else case of @')
             user_joined_name = f'{user_id}_{current_batch[0]}'
@@ -231,7 +242,7 @@ async def add_dev_to_db(args, cursor):
                 if not result[2] and not result[3]:
                     print('inside @ and repository and topic found as empty')
                     query = f'''
-                     update devs set topic = '{topic}',repository = '{github_repo}',start= {current_batch[0]},end = {deadline},batch_id = {current_batch[0]},tech_stack={tech_stack} ,deadline_as_date ={current_batch[5]} where tele_id = '{result[0]}';
+                     update devs set topic = '{topic}',repository = '{github_repo}',start= {current_batch[0]},end = {deadline},batch_id = {current_batch[0]},tech_stack={tech_stack} ,deadline_as_date ={current_batch[5]},team_id= {team_id} where tele_id = '{result[0]}';
                     '''
                     cursor.execute(query)
                     print('updated existing user in current batch')
@@ -263,7 +274,7 @@ async def add_dev_to_db(args, cursor):
             tech_stack    : {tech_stack}
             """)
             query = f'''
-            insert into devs ( tele_id, user_name, topic, repository, isExtended, ExtDate,start, end, user_fullname, user_firstname, batch_id, tech_stack,deadline_as_date) values ('{user_id}','{user_name}','{topic}','{github_repo}',0,0,{current_batch[0]},{deadline},'{fullname}','{first_name}',{current_batch[0]}, '{tech_stack}',{deadline_full});
+            insert into devs ( tele_id, user_name, topic, repository, isExtended, ExtDate,start, end, user_fullname, user_firstname, batch_id, tech_stack,deadline_as_date,team_id) values ('{user_id}','{user_name}','{topic}','{github_repo}',0,0,{current_batch[0]},{deadline},'{fullname}','{first_name}',{current_batch[0]}, '{tech_stack}',{deadline_full},{team_id});
             '''
             cursor.execute(query)
             return [0, user_id]
@@ -273,7 +284,7 @@ async def add_dev_to_db(args, cursor):
                 print('2 and 3 are empty')
                 # when finishing time we clear all the user's these project related fields (before clearing we move it to finished table)
                 query = f'''
-                     update devs set topic= '{topic}',repository = '{github_repo}',start= {current_batch[0]},end = {deadline},batch_id = {current_batch[0]},tech_stack='{tech_stack}',deadline_as_date ={current_batch[5]} where tele_id = '{user_id}';
+                     update devs set topic= '{topic}',repository = '{github_repo}',start= {current_batch[0]},end = {deadline},batch_id = {current_batch[0]},tech_stack='{tech_stack}',deadline_as_date ={current_batch[5]},team_id= {team_id} where tele_id = '{user_id}';
                     '''
                 cursor.execute(query)
                 print('updated existing user in current batch')
@@ -284,6 +295,52 @@ async def add_dev_to_db(args, cursor):
     # if result[0] is None:
     #     print('I found @ mention, and it must add through /join')
     #     return '@'
+
+
+def add_to_team(args, cursor):
+    team_id = args[0]
+    batch_id = args[1]
+    devs_id = args[2]
+    isBreaked = False
+    # query = f'''
+    #     select * from teams where  devs_id = '{devs_id}';
+    #     '''
+    # cursor.execute(query)
+    # result: list = cursor.fetchone()
+    # print(f'result {result}')
+    # if not result:
+    for dev in devs_id:
+        # circle through each dev's if any dev already joined in team we break entirely ,
+        # because if a new user need to be added to this group we're already providing 'add' command
+        query = f'''
+            select * from teams where  devs_id = '{dev}';
+            '''
+        cursor.execute(query)
+        result: list = cursor.fetchone()
+        print(f'result {result}')
+        if result:
+            isBreaked = True
+            break
+        else:
+            continue
+
+    if isBreaked:  # it means any of the mention we found in already teamed,then entirely we ignore
+        print('breaked because i found that dev already joined another team')
+        isBreaked = False
+        return False
+    else:
+        for dev in devs_id:
+            query = f'''
+            insert into teams (batch_id,team_id,devs_id) values ({batch_id},{team_id},'{dev}');
+            '''
+
+            print(f'query while adding team {query}')
+            cursor.execute(query)
+
+        return True
+    # return True
+    # else:
+    #     return False
 
 
 async def dbops(operation, args):
@@ -305,6 +362,11 @@ async def dbops(operation, args):
             return await check_is_user_already_present(args, cursor)
         if operation == 'add_new_user_to_db':
             return add_new_user_to_db(args, cursor)
+        # ====================================
+        if operation == 'add_to_team':
+            return add_to_team(args, cursor)
+        if operation == 'check_team_id_unique':
+            return await check_team_id_unique(args, cursor)
 
     except sqlite3.Error as error:
         print(f'error is : {error}')

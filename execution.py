@@ -1,11 +1,11 @@
-from telegram import ForceReply, Update
+from telegram import Update
 from datetime import datetime, timedelta
 import re
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 import operator as op
-from typing import TypedDict
 from telegram.constants import MessageEntityType
 
+import helpers
 import db_management
 
 
@@ -26,10 +26,7 @@ async def mention_check(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await message.reply_text(f"Username mentioned: {mention_text}")
                 mentions.append(mention_text)
 
-    # if not mentions:
-    #     mentions.append(update.message.from_user.id)
-    # else:
-    #     mentions.append(update.message.from_user.id)
+    mentions.append(update.message.from_user.id)
     return mentions
 
 
@@ -84,7 +81,13 @@ async def msg_process(msg_date, update: Update, context: ContextTypes.DEFAULT_TY
                                     return 'invalid'
                                 else:
                                     # adding team id
-
+                                    while True:
+                                        team_id = helpers.randint()
+                                        print(f'team id is ::"":: {team_id}')
+                                        status = await db_management.dbops('check_team_id_unique',
+                                                                           team_id)
+                                        if status:
+                                            break
 
                                     batch_start = str(current_batch[0])  # e.g. 20260327
                                     date_obj = datetime.strptime(batch_start, "%Y%m%d")
@@ -102,10 +105,18 @@ async def msg_process(msg_date, update: Update, context: ContextTypes.DEFAULT_TY
                                                  'deadline_full': current_batch[5],
                                                  'topic': topic,
                                                  'github_repo': github_repo,
-                                                 'tech': tech
+                                                 'tech': tech,
+                                                 'team_id': team_id
                                                  }
                                     return_val = await db_management.dbops('add_dev_to_db',
                                                                            [user_id, user_dict, context, current_batch])
+                                    # team rest
+
+                                    team_return = await db_management.dbops('add_to_team',
+                                                                            [team_id, current_batch[0], mentions])
+                                    if team_return:
+                                        print('successfully added all users in team table')
+
                                     print(f'result is {return_val}')
                                     developer_id_return = return_val[1]
                                     status = return_val[0]
@@ -115,13 +126,15 @@ async def msg_process(msg_date, update: Update, context: ContextTypes.DEFAULT_TY
                                     # 3 means didn't joined even after warnings
                                     if status == 0:
                                         dev_currently_joined.append(developer_id_return)
-                                        print('status means new user add entire new user with details or updated our old dev')
+                                        print(
+                                            'status means new user add entire new user with details or updated our old dev')
                                         # add_user(user_id)
                                     elif status == 1:
-                                        dev_not_joined.append(developer_id_return)
+                                        dev_currently_joined.append(developer_id_return)
                                         print('added user with user_name @ , so highly recommended to join')
                                     elif status == 3:
                                         dev_not_joined.append(developer_id_return)
+                                        dev_already_joined.append(developer_id_return)
                                         print('found user didnt updated in /join')
                                     else:
                                         dev_already_joined.append(developer_id_return)

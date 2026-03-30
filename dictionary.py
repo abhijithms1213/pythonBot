@@ -1,5 +1,3 @@
-import logging
-from xml.etree.ElementTree import tostring
 from telegram.constants import ParseMode
 
 import execution
@@ -83,6 +81,7 @@ async def check_msg(msg_date, update, context):
     extracted = int(date_only.replace('-', ''))
     status = await db_management.dbops('check_is_msg_under_planning_phase', extracted)
     if status == 'during_planning_phase':
+        #  get the return valid / invalid status then send message for each
         await  execution.msg_process(msg_date, update, context)
 
 
@@ -144,7 +143,7 @@ def map_user(row):
     columns = [
         "tele_id", "user_name", "topic", "repository", "isExtended", "ExtDate",
         "start", "end", "user_fullname", "user_firstname", "batch_id",
-        "tech_stack", "deadline_as_date"
+        "tech_stack", "deadline_as_date","team_id"
     ]
     return dict(zip(columns, row))
 
