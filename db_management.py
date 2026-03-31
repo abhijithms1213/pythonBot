@@ -1,7 +1,7 @@
 import sqlite3
 from datetime import datetime, timedelta
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
-import datetime
+import datetime as day
 
 
 async def check_team_id_unique(args, cursor):
@@ -353,6 +353,11 @@ def add_to_team(args, cursor):
     deadline = args[3]
     deadline_full = args[4]
     start_date = args[5]
+    project_infos = args[6]
+
+    topic = project_infos['topic']
+    github_repo = project_infos['github_repo']
+    tech_stack = project_infos['tech']
 
     date_planning = str(start_date)  # e.g. 20260327
     date_obj = datetime.strptime(date_planning, "%Y%m%d")  # 2026-03-27
@@ -386,7 +391,7 @@ def add_to_team(args, cursor):
     else:
         for dev in devs_id:
             query = f'''
-            insert into teams (batch_id,team_id,devs_id,isExtended,ExtDate,start,end,deadline_as_date) values ({batch_id},{team_id},'{dev}',0,0,{start},{deadline},{deadline_full});
+            insert into teams (batch_id,team_id,devs_id,isExtended,ExtDate,start,end,deadline_as_date,topic,repository,tech_stack) values ({batch_id},{team_id},'{dev}',0,0,{start},{deadline},{deadline_full},'{topic}','{github_repo}','{tech_stack}');
             '''
             #  remove those fields from usr
             print(f'query while adding team {query}')
@@ -527,8 +532,8 @@ def add_daily_update_in_logs(args, cursor):
         today_date = str(result[0][0])
         last_updation_day = str(result[1][0])
 
-        today_formatted = datetime.datetime.strptime(today_date, "%Y%m%d")
-        last_updation_day_formatted = datetime.datetime.strptime(last_updation_day, "%Y%m%d")
+        today_formatted = day.datetime.strptime(today_date, "%Y%m%d")
+        last_updation_day_formatted = day.datetime.strptime(last_updation_day, "%Y%m%d")
 
         yesterday = today_formatted - timedelta(days=1)
 
@@ -666,13 +671,13 @@ async def dbops(operation, args):
         if operation == 'check_is_msg_under_planning_phase':
             return check_msg(args, cursor)
         # user join group related
-        if operation == 'add_dev_to_db':
+        if operation == 'add_dev_to_db':  # used in that  msg_process method
             return await add_dev_to_db(args, cursor)
         if operation == 'check_is_user_already_present_and_update_if_yes':
             return await check_is_user_already_present_and_update_if_yes(args, cursor)
         if operation == 'check_is_user_already_exist_in_user_db':
             return await check_is_user_already_exist_in_user_db(args, cursor)
-        if operation == 'add_new_user_to_db':
+        if operation == 'add_new_user_to_db':  # while joining /join
             return add_new_user_to_db(args, cursor)
         if operation == 'update_deadline_of_batch':
             return update_deadline_of_batch(args, cursor)

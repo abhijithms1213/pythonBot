@@ -127,11 +127,16 @@ async def msg_process(msg_date, update: Update, context: ContextTypes.DEFAULT_TY
                                     f'batch info : {current_batch[0]} and deadline: {current_batch[3]}')  # i currently at this pos.
 
                                 # add to team
+                                core_infos = {
+                                    'topic': topic,
+                                    'github_repo': github_repo,
+                                    'tech': tech,
+                                }
 
                                 team_return = await db_management.dbops('add_to_team',
                                                                         [team_id, current_batch[0], mentions,
                                                                          int(updated_deadline), current_batch[5],
-                                                                         current_batch[1]])
+                                                                         current_batch[1],core_infos])
                                 # return only true won't get list of added devs
                                 if team_return is True:
                                     # if all users are successfully added only then we add in devs table
@@ -205,8 +210,6 @@ async def msg_process(msg_date, update: Update, context: ContextTypes.DEFAULT_TY
 
 
 async def project_phase(msg_date, update: Update, context: ContextTypes.DEFAULT_TYPE, current_batch):
-
-
     date_to_string = str(msg_date)
     date_only = date_to_string[:10]
     sanitized_date = int(date_only.replace('-', ''))
@@ -226,7 +229,7 @@ async def project_phase(msg_date, update: Update, context: ContextTypes.DEFAULT_
     else:
         additional_points = 0
         # checks is user's data already here in logs with current date
-        is_user = await db_management.dbops('daily_activity_record_check_record', [user_id,sanitized_date])
+        is_user = await db_management.dbops('daily_activity_record_check_record', [user_id, sanitized_date])
         print(f'user :{is_user} ')
         if not is_user:
             match = re.search(r'update:\s*(.*)', msg_lower, re.DOTALL)
@@ -262,7 +265,7 @@ async def project_phase(msg_date, update: Update, context: ContextTypes.DEFAULT_
                     return True
             else:
                 activity_status = await db_management.dbops('add_activity_msg_first_entry_today',
-                                                         [user_id, msg, sanitized_date, status[0][0],
-                                                          1])  # last 0 means first entry
+                                                            [user_id, msg, sanitized_date, status[0][0],
+                                                             1])  # last 0 means first entry
                 print('msg after first record it"s activity')
         return True
