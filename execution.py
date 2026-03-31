@@ -98,7 +98,7 @@ async def msg_process(msg_date, update: Update, context: ContextTypes.DEFAULT_TY
                                 if deadline > batch_deadline:
                                     print('found deadline is greater than batch')
                                     updated_deadline = await db_management.dbops('update_deadline_of_batch',
-                                                                                 [deadline,current_batch[1]])
+                                                                                 [deadline, current_batch[1]])
                                     print(f'updated deadline {updated_deadline}')
                                     if not updated_deadline:
                                         print('not updated any issues?')
@@ -117,7 +117,7 @@ async def msg_process(msg_date, update: Update, context: ContextTypes.DEFAULT_TY
                                         break
 
                                 date_after_planning = str(current_batch[0])  # e.g. 20260327
-                                date_obj = datetime.strptime(date_after_planning, "%Y%m%d") # 2026-03-27
+                                date_obj = datetime.strptime(date_after_planning, "%Y%m%d")  # 2026-03-27
 
                                 deadline_date = date_obj + timedelta(days=int(updated_deadline))
 
@@ -208,34 +208,38 @@ async def project_phase(msg_date, update: Update, context: ContextTypes.DEFAULT_
     current_batch = current_batch
     user_id = update.message.from_user.id
     user_name = update.message.chat.username
-    msg = update.message.text.lower()
+    msg = update.message.text
+    msg_lower = msg.lower()
     # print(f' uid: {user_id}')
-    status = await db_management.dbops('check_user_under_batch', [current_batch[0], user_id])
+    status = await db_management.dbops('check_team_under_batch', [current_batch[0], user_id])
     # print(f'status is : {status}')
     if status is None:
         print('no user found in db so not need to record')
         return False
     else:
         additional_points = 0
+        # checks is user's data already here in logs with current date
         is_user = await db_management.dbops('daily_activity_record_check_record', [user_id])
         print(f'user :{is_user} ')
         if not is_user:
-            print('no user found in db so not need to record')
-            match = re.search(r'update:\s*(.*)', msg, re.DOTALL)
+            match = re.search(r'update:\s*(.*)', msg_lower, re.DOTALL)
             # if user's 1st msg in that day is update: then this
             if match:
+                #
                 message = match.group(1).strip()
                 print(f'update msg: {message} and length {len(message)}')
-                is_user = await db_management.dbops('add_daily_update_in_logs', [msg_date, user_id, status[0][0]])
-                if is_user:
-                    print('worked ')
+                is_user = await db_management.dbops('add_daily_update_in_logs',
+                                                    [msg_date, user_id, status[0][0], message])  # 0,0 is user_name
+                return True
 
             else:
+                found_status = await db_management.dbops('add_activity_msg_first_entry_today',
+                                                         [user_id, msg, msg_date, status[0][0]])
                 print('its not update msg its daily activity')
-            return False
+                return True
         else:
             print('last else worked')
-            match = re.search(r'update:\s*(.*)', msg, re.DOTALL)
+            match = re.search(r'update:\s*(.*)', msg_lower, re.DOTALL)
             if match:
                 message = match.group(1).strip()
                 print(f'update msg: {message} and length {len(message)}')

@@ -196,9 +196,6 @@ async def join_grp(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         
         🛠️ *Tech Stack:* {user["tech_stack"]}
         
-        🚀 *Start Date:* {user["start"]}
-        ⏳ *Deadline (days):* {user["end"]}
-        
         ━━━━━━━━━━━━━━━━━━━
         💪 Stay consistent. Build daily. Win big.
         ━━━━━━━━━━━━━━━━━━━

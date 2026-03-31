@@ -16,12 +16,12 @@ async def check_team_id_unique(args, cursor):
         return True
 
 
-def check_user_under_batch(args, cursor):
+def check_team_under_batch(args, cursor):
     batch_id = int(args[0])
     user_id = str(args[1])
     # print(f'batch : {batch_id} and {user_id}')
     query = f'''
-    select * from devs where batch_id = {batch_id} and tele_id = '{user_id}';
+    select * from teams where batch_id = {batch_id} and devs_id = '{user_id}';
     '''
     # checks is user found in this batch
     cursor.execute(query)
@@ -352,16 +352,15 @@ def add_to_team(args, cursor):
     deadline = args[3]
     deadline_full = args[4]
     start_date = args[5]
+
+    date_planning = str(start_date)  # e.g. 20260327
+    date_obj = datetime.strptime(date_planning, "%Y%m%d")  # 2026-03-27
+    date_after_planning = date_obj + timedelta(days=int(1))
+    start = date_after_planning.strftime("%Y%m%d")  # 20260410
+
     print(f'devs ids passed to add team:{devs_id}')
     isBreaked = False
     imposter: str = ''
-    # query = f'''
-    #     select * from teams where  devs_id = '{devs_id}';
-    #     '''
-    # cursor.execute(query)
-    # result: list = cursor.fetchone()
-    # print(f'result {result}')
-    # if not result:
     for dev in devs_id:
         print(f'devs ids passed to add team:{type(dev)}')
         # circle through each dev's if any dev already joined in team we break entirely ,
@@ -386,7 +385,7 @@ def add_to_team(args, cursor):
     else:
         for dev in devs_id:
             query = f'''
-            insert into teams (batch_id,team_id,devs_id,isExtended,ExtDate,start,end,deadline_as_date) values ({batch_id},{team_id},'{dev}',0,0,{start_date},{deadline},{deadline_full});
+            insert into teams (batch_id,team_id,devs_id,isExtended,ExtDate,start,end,deadline_as_date) values ({batch_id},{team_id},'{dev}',0,0,{start},{deadline},{deadline_full});
             '''
             #  remove those fields from usr
             print(f'query while adding team {query}')
@@ -417,13 +416,14 @@ def daily_activity_record_check_record(args, cursor):
 
 def add_daily_update_in_logs(args, cursor):
     msg_date = args[0]
+    msg_content = args[3]
     date_to_string = str(msg_date)
     date_only = date_to_string[:10]
     extracted = int(date_only.replace('-', ''))
     user_id = args[1]
     user_name = args[2]
     query = f'''
-    insert into daily_logs (Date,tele_id,isUpdated,Activity,MsgLen,UserName) values ({extracted},'{user_id}',1,0,0,'{user_name}');
+    insert into daily_logs (Date,tele_id,isUpdated,Activity,MsgLen,UserName,UpdateText) values ({extracted},'{user_id}',1,0,0,'{user_name}','{msg_content}');
     '''
 
     cursor.execute(query)
@@ -461,11 +461,6 @@ def update_deadline_of_batch(args, cursor):
 
 async def check_is_user_already_exist_in_user_db(args, cursor):
     user_id = args
-    # if user_id.startswith('@'):
-    #     user_id = user_id.replace("@", "")
-    # else:
-    #     user_id = args
-
     query = f'''
     select * from devs where user_name = '{user_id}';
     '''
@@ -483,6 +478,39 @@ async def check_is_user_already_exist_in_user_db(args, cursor):
             return result[0][0]
         else:
             return None
+
+
+def add_activity_msg_first_entry_today(args, cursor):
+    user_id = args[0]
+    msg = args[1]
+    user_name = args[3]
+
+    msg_date = args[2]
+    date_to_string = str(msg_date)
+    date_only = date_to_string[:10]
+    extracted = int(date_only.replace('-', ''))
+    msg_len = len(msg)
+    if msg_len > 20:
+        print('msg above 20')
+        query = f'''
+        insert into daily_logs (Date,tele_id,Activity,MsgLen,UserName) values ({extracted},'{user_id}',1,{msg_len},'{user_name}');
+        '''
+
+        cursor.execute(query)
+        cursor.fetchall()
+    else:
+        print('msg len under 20')
+        query = f'''
+             insert into daily_logs (Date,tele_id,Activity,MsgLen,UserName) values ({extracted},'{user_id}',0,{msg_len},'{user_name}');
+             '''
+
+        cursor.execute(query)
+        cursor.fetchall()
+    return True
+
+
+def streak_update(args, cursor):
+    print('strk')
 
 
 async def dbops(operation, args):
@@ -515,12 +543,16 @@ async def dbops(operation, args):
             return await check_team_id_unique(args, cursor)
 
         #  using some fun below for during project phase executions
-        if operation == 'check_user_under_batch':
-            return check_user_under_batch(args, cursor)
+        if operation == 'check_team_under_batch':
+            return check_team_under_batch(args, cursor)
         if operation == 'daily_activity_record_check_record':
             return daily_activity_record_check_record(args, cursor)
         if operation == 'add_daily_update_in_logs':
             return add_daily_update_in_logs(args, cursor)
+        if operation == 'add_activity_msg_first_entry_today':
+            return add_activity_msg_first_entry_today(args, cursor)
+        if operation == 'streak_update':
+            return streak_update(args, cursor)
 
     except sqlite3.Error as error:
         print(f'error is : {error}')
