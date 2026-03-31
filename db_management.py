@@ -270,9 +270,9 @@ async def add_dev_to_db(args, cursor):
                     print('updated existing user in current batch')
                     return [0, user_id]
                 else:
-                    print('found already in batch so not adding')
+                    print('found already in batch , also didnt updated details using /join after warnings')
                     # here user didn't updated after warnings
-                    return [2, user_id, 3]
+                    return [3, user_id]
 
                 # return [3, result[1]]
             # elif means user didn't update while joining in second batch so names will diff: because of we completed id with batch_id so currently user have previous batch's id as 'tail'.
@@ -348,10 +348,13 @@ async def add_dev_to_db(args, cursor):
 
 
 def add_to_team(args, cursor):
+    # after bach team will be cleared
     team_id = args[0]
     batch_id = args[1]
     devs_id = args[2]
+    print(f'devs ids passed to add team:{devs_id}')
     isBreaked = False
+    imposter: str = ''
     # query = f'''
     #     select * from teams where  devs_id = '{devs_id}';
     #     '''
@@ -360,16 +363,18 @@ def add_to_team(args, cursor):
     # print(f'result {result}')
     # if not result:
     for dev in devs_id:
+        print(f'devs ids passed to add team:{type(dev)}')
         # circle through each dev's if any dev already joined in team we break entirely ,
         # because if a new user need to be added to this group we're already providing 'add' command
         query = f'''
-            select * from teams where  devs_id = '{dev}';
+            select * from teams where devs_id = '{dev}';
             '''
         cursor.execute(query)
         result: list = cursor.fetchone()
         print(f'result {result}')
         if result:
             isBreaked = True
+            imposter = f'{dev}'
             break
         else:
             continue
@@ -377,7 +382,7 @@ def add_to_team(args, cursor):
     if isBreaked:  # it means any of the mention we found in already teamed,then entirely we ignore
         print('breaked because i found that dev already joined another team')
         isBreaked = False
-        return False
+        return [False,imposter]
     else:
         for dev in devs_id:
             query = f'''

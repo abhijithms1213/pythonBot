@@ -26,7 +26,7 @@ async def mention_check(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await message.reply_text(f"Username mentioned: {mention_text}")
 
                 user = await db_management.dbops('check_is_user_already_exist_in_user_db',
-                                                             mention_text)
+                                                 mention_text)
                 if user:
                     print(f'found user {user}')
                     mentions.append(f'{user}')
@@ -125,50 +125,58 @@ async def msg_process(msg_date, update: Update, context: ContextTypes.DEFAULT_TY
                                 print(
                                     f'batch info : {current_batch[0]} and deadline: {current_batch[3]}')  # i currently at this pos.
 
-                                for user_id in mentions:
-                                    user_dict = {'user_tele_id': user_id,
-                                                 'deadline': int(updated_deadline),
-                                                 'deadline_full': current_batch[5],
-                                                 'topic': topic,
-                                                 'github_repo': github_repo,
-                                                 'tech': tech,
-                                                 'team_id': team_id
-                                                 }
-                                    return_val = await db_management.dbops('add_dev_to_db',
-                                                                           [user_id, user_dict, context, current_batch])
-                                    # team rest
+                                # add to team
 
-                                    team_return = await db_management.dbops('add_to_team',
-                                                                            [team_id, current_batch[0], mentions])
-                                    if team_return:
-                                        print('successfully added all users in team table')
+                                team_return = await db_management.dbops('add_to_team',
+                                                                        [team_id, current_batch[0], mentions])
+                                # return only true won't get list of added devs
+                                if team_return is True:
+                                    # if all users are successfully added only then we add in devs table
+                                    print('successfully added all users in teams table')
+                                    for user_id in mentions:
+                                        user_dict = {'user_tele_id': user_id,
+                                                     'deadline': int(updated_deadline),
+                                                     'deadline_full': current_batch[5],
+                                                     'topic': topic,
+                                                     'github_repo': github_repo,
+                                                     'tech': tech,
+                                                     'team_id': team_id
+                                                     }
+                                        return_val = await db_management.dbops('add_dev_to_db',
+                                                                               [user_id, user_dict, context,
+                                                                                current_batch])
 
-                                    print(f'result is {return_val}')
-                                    developer_id_return = return_val[1]
-                                    status = return_val[0]
-                                    # 0 means we returned telegram_id and added to db fully ,
-                                    # 1 is username returned, and we added details to db but  must join dev using bot,
-                                    # 2 is already found he is joined in ths batch so not going to add
-                                    # 3 means didn't joined even after warnings
-                                    if status == 0:
-                                        dev_currently_joined.append(developer_id_return)
-                                        print(
-                                            'status means new user add entire new user with details or updated our old dev')
-                                        # add_user(user_id)
-                                    elif status == 1:
-                                        dev_currently_joined.append(developer_id_return)
-                                        print('added user with user_name @ , so highly recommended to join')
-                                    elif status == 3:
-                                        dev_not_joined.append(developer_id_return)
-                                        dev_already_joined.append(developer_id_return)
-                                        print('found user didnt updated in /join')
-                                    else:
-                                        dev_already_joined.append(developer_id_return)
-                                        print("found user so now don't update")
+                                        print(f'result is {return_val}')
+                                        developer_id_return = return_val[1]
+                                        status = return_val[0]
+                                        # 0 means we returned telegram_id and added to db fully ,
+                                        # 1 is username returned, and we added details to db but  must join dev using bot,
+                                        # 2 is already found he is joined in ths batch so not going to add
+                                        # 3 means didn't joined even after warnings
+                                        if status == 0:
+                                            dev_currently_joined.append(developer_id_return)
+                                            print(
+                                                'status means new user add entire new user with details or updated our old dev')
+                                            # add_user(user_id)
+                                        elif status == 1:
+                                            dev_currently_joined.append(developer_id_return)
+                                            print('added user with user_name @ , so highly recommended to join')
+                                        elif status == 3:
+                                            dev_not_joined.append(developer_id_return)
+                                            dev_already_joined.append(developer_id_return)
+                                            print('found user didnt updated in /join')
+                                        else:
+                                            dev_already_joined.append(developer_id_return)
+                                            print("found user so now don't update")
+                                else:
+                                    imposter = team_return[1]
+                                    print(
+                                        f'he:{imposter} is already joined so ignoring not added anyone please ensure')
+                                    return 'invalid'
 
                                 # clear list after all msg sent
                                 print(
-                                    f'devs not: {dev_not_joined} & already joined {dev_already_joined} & new joined: {dev_currently_joined}')
+                                    f'devs not /join : {dev_not_joined} & already joined in this batch: {dev_already_joined} & new joins: {dev_currently_joined}')
                                 dev_not_joined.clear()
                                 dev_already_joined.clear()
                                 dev_currently_joined.clear()

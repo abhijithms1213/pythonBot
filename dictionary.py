@@ -131,6 +131,7 @@ async def create_batch_group(update: Update, context: ContextTypes.DEFAULT_TYPE)
     # check if am I sending the command
     if tele_uid != tele_user_me:
         await context.bot.send_message(chat_id=update.message.chat_id, text='poda podaaaa')
+        return
 
     if arg_text == 'clear' and arg_text != '':
         await db_management.dbops('clear_batch', '')
