@@ -24,13 +24,22 @@ async def mention_check(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 # For regular @username mentions, you only get the text
                 mention_text = message.parse_entity(entity)
                 await message.reply_text(f"Username mentioned: {mention_text}")
-                mentions.append(mention_text)
 
-    mentions.append(update.message.from_user.id)
+                user = await db_management.dbops('check_is_user_already_exist_in_user_db',
+                                                             mention_text)
+                if user:
+                    print(f'found user {user}')
+                    mentions.append(f'{user}')
+                else:
+                    print('not found in db about user')
+                    mentions.append(mention_text)
+
+    # mentions.append(update.message.from_user.id)
     return mentions
 
 
-async def msg_process(msg_date, update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def msg_process(msg_date, update: Update, context: ContextTypes.DEFAULT_TYPE, current_batch):
+    current_batch = current_batch
     msg = update.message.text
     split_msgs: list[str] = msg.split()
     lower_split = [s.lower() for s in split_msgs]
@@ -75,33 +84,50 @@ async def msg_process(msg_date, update: Update, context: ContextTypes.DEFAULT_TY
                                 print(f'its all set and valid repo is {github_repo}')
                                 #  get mentions from the message
                                 mentions = await mention_check(update, context)
-                                current_batch = await db_management.dbops('get_current_batch', '')
-                                print(f'batch status : {current_batch}')
-                                if current_batch is None:
-                                    return 'invalid'
+
+                                #  didn't need this , because we already confirmed batch found that's why this method exec.
+                                # current_batch = await db_management.dbops('get_current_batch', '')
+                                # print(f'batch status : {current_batch}')
+                                # if current_batch is None:
+                                #     return 'invalid'
+                                # else:
+
+                                # check if current deadline is under batch's deadline else update batch's deadline also
+                                batch_deadline = current_batch[3]
+                                deadline = int(deadline)
+                                if deadline > batch_deadline:
+                                    print('found deadline is greater than batch')
+                                    updated_deadline = await db_management.dbops('update_deadline_of_batch',
+                                                                                 deadline)
+                                    if not updated_deadline:
+                                        print('not updated any issues?')
+                                        updated_deadline = deadline
                                 else:
-                                    # adding team id
-                                    while True:
-                                        team_id = helpers.randint()
-                                        print(f'team id is ::"":: {team_id}')
-                                        status = await db_management.dbops('check_team_id_unique',
-                                                                           team_id)
-                                        if status:
-                                            break
+                                    print('deadline is under')
+                                    updated_deadline = deadline
 
-                                    batch_start = str(current_batch[0])  # e.g. 20260327
-                                    date_obj = datetime.strptime(batch_start, "%Y%m%d")
+                                # adding team id
+                                while True:
+                                    team_id = helpers.randint()
+                                    print(f'team id is ::"":: {team_id}')
+                                    status = await db_management.dbops('check_team_id_unique',
+                                                                       team_id)
+                                    if status:
+                                        break
 
-                                    deadline_date = date_obj + timedelta(days=int(deadline))
+                                batch_start = str(current_batch[0])  # e.g. 20260327
+                                date_obj = datetime.strptime(batch_start, "%Y%m%d")
 
-                                    deadline_full = deadline_date.strftime("%Y%m%d")  # 20260410
-                                    print(f"deadline full : {deadline_full}")
-                                    print(
-                                        f'batch info : {current_batch[0]} and deadline: {current_batch[3]}')  # i currently at this pos.
+                                deadline_date = date_obj + timedelta(days=int(updated_deadline))
+
+                                deadline_full = deadline_date.strftime("%Y%m%d")  # 20260410
+                                print(f"deadline full : {deadline_full}")
+                                print(
+                                    f'batch info : {current_batch[0]} and deadline: {current_batch[3]}')  # i currently at this pos.
 
                                 for user_id in mentions:
                                     user_dict = {'user_tele_id': user_id,
-                                                 'deadline': int(deadline),
+                                                 'deadline': int(updated_deadline),
                                                  'deadline_full': current_batch[5],
                                                  'topic': topic,
                                                  'github_repo': github_repo,
@@ -165,3 +191,41 @@ async def msg_process(msg_date, update: Update, context: ContextTypes.DEFAULT_TY
     else:
         print("didn't found starter")
         return 'invalid'
+
+
+async def project_phase(msg_date, update: Update, context: ContextTypes.DEFAULT_TYPE, current_batch):
+    current_batch = current_batch
+    user_id = update.message.from_user.id
+    user_name = update.message.chat.username
+    msg = update.message.text.lower()
+    # print(f' uid: {user_id}')
+    status = await db_management.dbops('check_user_under_batch', [current_batch[0], user_id])
+    # print(f'status is : {status}')
+    if status is None:
+        print('no user found in db so not need to record')
+        return False
+    else:
+        additional_points = 0
+        is_user = await db_management.dbops('daily_activity_record_check_record', [user_id])
+        print(f'user :{is_user} ')
+        if not is_user:
+            print('no user found in db so not need to record')
+            match = re.search(r'update:\s*(.*)', msg, re.DOTALL)
+            # if user's 1st msg in that day is update: then this
+            if match:
+                message = match.group(1).strip()
+                print(f'update msg: {message} and length {len(message)}')
+                is_user = await db_management.dbops('add_daily_update_in_logs', [msg_date, user_id, status[0][0]])
+                if is_user:
+                    print('worked ')
+
+            else:
+                print('its not update msg its daily activity')
+            return False
+        else:
+            print('last else worked')
+            match = re.search(r'update:\s*(.*)', msg, re.DOTALL)
+            if match:
+                message = match.group(1).strip()
+                print(f'update msg: {message} and length {len(message)}')
+            return True

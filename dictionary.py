@@ -79,10 +79,18 @@ async def check_msg(msg_date, update, context):
     date_only = date_to_string[:10]
     print(f'msg date: {date_only}')
     extracted = int(date_only.replace('-', ''))
-    status = await db_management.dbops('check_is_msg_under_planning_phase', extracted)
+    ret_status = await db_management.dbops('check_is_msg_under_planning_phase', extracted)
+    status = ret_status[0]
+    current_batch = ret_status[1]
     if status == 'during_planning_phase':
         #  get the return valid / invalid status then send message for each
-        await  execution.msg_process(msg_date, update, context)
+        await  execution.msg_process(msg_date, update, context,current_batch)
+    elif status == 'during_project_phase':
+        return_value = await  execution.project_phase(msg_date, update, context,current_batch)
+        if return_value:
+            print('true returned')
+        else:
+            print('false returned')
 
 
 async def grp_msg(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -143,7 +151,7 @@ def map_user(row):
     columns = [
         "tele_id", "user_name", "topic", "repository", "isExtended", "ExtDate",
         "start", "end", "user_fullname", "user_firstname", "batch_id",
-        "tech_stack", "deadline_as_date","team_id"
+        "tech_stack", "deadline_as_date", "team_id"
     ]
     return dict(zip(columns, row))
 
@@ -153,7 +161,7 @@ async def join_grp(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_name = update.message.chat.username
     user_fullname = update.message.chat.full_name
     user_first_name = update.message.chat.first_name
-    status = await db_management.dbops('check_is_user_already_present', [user_id, context])
+    status = await db_management.dbops('check_is_user_already_present_and_update_if_yes', [user_id, context])
     status_msg = status[0]
     status_return_user = status[1]
     if status_msg is False:

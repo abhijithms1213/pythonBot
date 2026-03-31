@@ -16,93 +16,115 @@ async def check_team_id_unique(args, cursor):
         return True
 
 
+def check_user_under_batch(args, cursor):
+    batch_id = int(args[0])
+    user_id = str(args[1])
+    # print(f'batch : {batch_id} and {user_id}')
+    query = f'''
+    select * from devs where batch_id = {batch_id} and tele_id = '{user_id}';
+    '''
+    # checks is user found in this batch
+    cursor.execute(query)
+    result = cursor.fetchall()
+    # print(f'from raw user is :{result} and query: {query}')
+    if result is None:
+        return None
+    else:
+        return result
+
+
 def check_any_batches_running(cursor):
     query = '''
     select * from batches where isCurrent = 1;
     '''
     cursor.execute(query)
-    result = cursor.fetchone()
+    result = cursor.fetchall()
+    print(f'rst: {result}')
     print(f'from raw current batch result :{result}')
-    if result is []:
+    if not result:
         return None
     else:
         # print(
         # f'found in db Data => date: {result[0]} , planning_phase: {result[1]} isCurrent: {result[2]} , batch-deadLine: {result[3]}')
-        return result
+        return result[0]
 
 
 def check_msg(msg_date, cursor):
+    # msg_date=20260312
     getstatus = check_any_batches_running(cursor)
     print(f'status: {getstatus} and msg date: {msg_date}')
     if getstatus is None:
-        return ''
-    if getstatus[0] >= msg_date <= getstatus[1]:
+        print('no running batches')
+        return ['no_batches_currently', '']
+    if getstatus[0] <= msg_date and msg_date <= getstatus[1]:
         print('so its under the hood')
-        return 'during_planning_phase'
-    elif getstatus[1] >= msg_date <= getstatus[5]:  # 5 is deadline as whole numbers
+        return ['during_planning_phase', getstatus]
+
+    elif getstatus[1] <= msg_date <= getstatus[5]:  # 5 is deadline as whole numbers
         print('its show tym')
-        return 'during_project_phase'
+        return ['during_project_phase', getstatus]
     elif msg_date > getstatus[5]:
         print('after deadline worked')
         # handle if result[4] is 1
         # check if dev extended already then ok to comment updates
         # else don't need to record add warning 'u didn't mention during project phase'
-        return 'after_deadline'
-    return None
+        return ['after_deadline', getstatus]
+    else:
+        print('msg not under any')
+        return [None, '']
 
 
 def addnewbatch(date, cursor):
     sanitizedDate = int(f'{date}'.replace('-', ''))
     status = check_msg(sanitizedDate, cursor)
-    if status != '':
-        print('currently running a batch')
+    if status[0] == 'no_batches_currently':
+        print(f'date is checking {sanitizedDate}\n')
+        cursor.execute(f'''
+       select * from batches ;
+                       ''')
+        # where Date_id = {sanitizedDate}
+        output = cursor.fetchall()
+        for row in output:
+            print(f'each row 1st attr (Date_id): {row[0]}')
+            # select Date_id from batches where Date_id = {sanitizedDate} OR isCurrent = 1
+            if row[0] == sanitizedDate and row[2] == 1:
+                #  but currently not active,
+                cursor.execute(f'''
+            select Date_id from batches where Date_id: {sanitizedDate};
+                                 ''')
+                output = cursor.fetchone()
+                print(f'batch found in db:  {output[0]}')
+                return 'running'
+            else:
+                continue
+
+        plan_finish_date = 2
+        deadline = 14
+
+        batch_start = str(sanitizedDate)  # e.g. 20260327
+        date_obj = datetime.strptime(batch_start, "%Y%m%d")
+
+        # Step 1: batch finish date
+        finish_date = date_obj + timedelta(days=plan_finish_date)
+        finish_date_full = finish_date.strftime("%Y%m%d")
+
+        # Step 2: deadline from finish date
+        deadline_date = finish_date + timedelta(days=deadline)
+        deadline_full = deadline_date.strftime("%Y%m%d")
+
+        print(f"finish date full : {finish_date_full}")
+        print(f"deadline full    : {deadline_full}")
+
+        cursor.execute(f'''
+        insert into batches (Date_id,Planning_Date,isCurrent,deadline,isExtended,deadline_as_date) values ({sanitizedDate},{finish_date_full},1,11,0,{deadline_full}); 
+                        ''')
+        # 1 => currently running true , 14 => as default deadline, 0 => boolean that not Extending at initial so it's False
+        cursor.execute('select * from batches;')
+        output = cursor.fetchall()
+        print(output)
+        return 'added_new_batch'
+    else:
         return 'running'
-
-    print(f'date is checking {sanitizedDate}\n')
-    cursor.execute(f'''
-   select * from batches ;
-                   ''')
-    # where Date_id = {sanitizedDate}
-    output = cursor.fetchall()
-    for row in output:
-        print(f'each row 1st attr (Date_id): {row[0]}')
-        # select Date_id from batches where Date_id = {sanitizedDate} OR isCurrent = 1
-        if row[0] == sanitizedDate and row[2] == 1:
-            #  but currently not active,
-            cursor.execute(f'''
-        select Date_id from batches where Date_id: {sanitizedDate};
-                             ''')
-            output = cursor.fetchone()
-            print(f'batch found in db:  {output[0]}')
-            return 'running'
-        else:
-            continue
-
-    plan_finish_date = 2
-    deadline = 14
-
-    batch_start = str(sanitizedDate)  # e.g. 20260327
-    date_obj = datetime.strptime(batch_start, "%Y%m%d")
-
-    # Step 1: batch finish date
-    finish_date = date_obj + timedelta(days=plan_finish_date)
-    finish_date_full = finish_date.strftime("%Y%m%d")
-
-    # Step 2: deadline from finish date
-    deadline_date = finish_date + timedelta(days=deadline)
-    deadline_full = deadline_date.strftime("%Y%m%d")
-
-    print(f"finish date full : {finish_date_full}")
-    print(f"deadline full    : {deadline_full}")
-
-    cursor.execute(f'''
-    insert into batches (Date_id,Planning_Date,isCurrent,deadline,isExtended,deadline_as_date) values ({sanitizedDate},{finish_date_full},1,14,0,{deadline_full}); 
-                    ''')
-    # 1 => currently running true , 14 => as default deadline, 0 => boolean that not Extending at initial so it's False
-    cursor.execute('select * from batches;')
-    output = cursor.fetchall()
-    print(output)
-    return 'added_new_batch'
 
 
 def clear_batch(cursor):
@@ -138,7 +160,7 @@ def add_new_user_to_db(args: list, cursor):
     return True
 
 
-async def check_is_user_already_present(args, cursor):
+async def check_is_user_already_present_and_update_if_yes(args, cursor):
     user_id = args[0]
     context: ContextTypes.DEFAULT_TYPE = args[1]
     chat_usr = await context.bot.get_chat(chat_id=user_id)
@@ -236,22 +258,50 @@ async def add_dev_to_db(args, cursor):
             if original_user_id == user_joined_name:  # it means that user didn't joined , after joining the current batch
                 print('inside @ and equal names found @abc_24')
                 print('user still didnt updated after my warning')
-                return [3, result[1]]
 
-            else:  # means user id exist
                 if not result[2] and not result[3]:
-                    print('inside @ and repository and topic found as empty')
+                    # means empty after 2,3 batches still didn't /join then it will be @abc_123 so here also check is empty the repo details(means current batche's info)
+                    print('2 and 3 are empty')
+                    # when finishing time we clear all the user's these project related fields (before clearing we move it to finished table)
                     query = f'''
-                     update devs set topic = '{topic}',repository = '{github_repo}',start= {current_batch[0]},end = {deadline},batch_id = {current_batch[0]},tech_stack={tech_stack} ,deadline_as_date ={current_batch[5]},team_id= {team_id} where tele_id = '{result[0]}';
-                    '''
+                         update devs set topic= '{topic}',repository = '{github_repo}',start= {current_batch[0]},end = {deadline},batch_id = {current_batch[0]},tech_stack='{tech_stack}',deadline_as_date ={current_batch[5]},team_id= {team_id} where user_name = '{user_id}';
+                        '''
                     cursor.execute(query)
                     print('updated existing user in current batch')
-                    return [1, result[0]]
-                #  next setup returning each dev based on categorised for msging
+                    return [0, user_id]
                 else:
-                    print('inside @ and already u are in batch')
                     print('found already in batch so not adding')
-                    return [2, result[0]]
+                    # here user didn't updated after warnings
+                    return [2, user_id, 3]
+
+                # return [3, result[1]]
+            # elif means user didn't update while joining in second batch so names will diff: because of we completed id with batch_id so currently user have previous batch's id as 'tail'.
+            # elif: original_user_id != user_joined_name: act as else (below)
+            else:
+                query = f'''
+                         update devs set tele_id = '{user_joined_name}', topic= '{topic}',repository = '{github_repo}',start= {current_batch[0]},end = {deadline},batch_id = {current_batch[0]},tech_stack='{tech_stack}',deadline_as_date ={current_batch[5]},team_id= {team_id} where user_name = '{user_id}';
+                        '''
+                cursor.execute(query)
+                print(
+                    'he already in our db with @abc_+ prev_batch_id so updated batch and new infos not even looking is filled other info about batch coz it doesnt matter')
+                return [0, user_id]
+
+            # else:  # means user id exist mean 12345 exist but, it won't work because we in parent if checked '@' and ensured this cases under @abc id
+            #     print('something wrong')
+            #     return [0, '']
+        # if not result[2] and not result[3]:
+        #     print('inside @ and repository and topic found as empty')
+        #     query = f'''
+        #      update devs set topic = '{topic}',repository = '{github_repo}',start= {current_batch[0]},end = {deadline},batch_id = {current_batch[0]},tech_stack={tech_stack} ,deadline_as_date ={current_batch[5]},team_id= {team_id} where tele_id = '{result[0]}';
+        #     '''
+        #     cursor.execute(query)
+        #     print('updated existing user in current batch')
+        #     return [1, result[0]]
+        # #  next setup returning each dev based on categorised for msging
+        # else:
+        #     print('inside @ and already u are in batch')
+        #     print('found already in batch so not adding')
+        #     return [2, result[0]]
     else:
         query = f'''
         select * from devs where tele_id = '{user_id}';
@@ -343,6 +393,82 @@ def add_to_team(args, cursor):
     #     return False
 
 
+def daily_activity_record_check_record(args, cursor):
+    user_id = str(args[0])
+    query = f'''
+    select * from daily_logs where tele_id = '{user_id}';
+    '''
+    # checks is user found in this batch
+    cursor.execute(query)
+    result = cursor.fetchall()
+    print(f'from raw user is :{result} and query: {query}')
+    if result is None:
+        return None
+    else:
+        return result
+
+
+def add_daily_update_in_logs(args, cursor):
+    msg_date = args[0]
+    date_to_string = str(msg_date)
+    date_only = date_to_string[:10]
+    extracted = int(date_only.replace('-', ''))
+    user_id = args[1]
+    user_name = args[2]
+    query = f'''
+    insert into daily_logs (Date,tele_id,isUpdated,Activity,MsgLen,UserName) values ({extracted},'{user_id}',1,0,0,'{user_name}');
+    '''
+
+    cursor.execute(query)
+    cursor.fetchall()
+    return True
+
+
+def update_deadline_of_batch(args, cursor):
+    new_deadline = args
+    db_query = f'''
+    update batches set deadline={new_deadline} where  isCurrent = 1;
+    '''
+    cursor.execute(db_query)
+    query = '''
+    select * from batches where isCurrent = 1;
+    '''
+    cursor.execute(query)
+    result = cursor.fetchall()
+    print(f'result of update deadline: {result}')
+    # print(f'from raw user is :{result} and query: {db_query}')
+    if result is None:
+        return None
+    else:
+        return result[0][3] or new_deadline
+
+
+async def check_is_user_already_exist_in_user_db(args, cursor):
+    user_id = args
+    # if user_id.startswith('@'):
+    #     user_id = user_id.replace("@", "")
+    # else:
+    #     user_id = args
+
+    query = f'''
+    select * from devs where user_name = '{user_id}';
+    '''
+
+    cursor.execute(query)
+    result = cursor.fetchall()
+    print(f'user found {result} and query {query}  ')
+    if not result:
+        print('empty result not worked')
+        return None
+    # also check if start with @ if not then return that because maybe this field have @jithu_batch_no
+    else:
+        user_id_from_db: str = result[0]
+        if user_id_from_db[0].isdigit():
+            return result[0][0]
+        else:
+            return None
+
+
 async def dbops(operation, args):
     try:
         connect = sqlite3.connect('zerodev.db')
@@ -358,15 +484,27 @@ async def dbops(operation, args):
         # user join group related
         if operation == 'add_dev_to_db':
             return await add_dev_to_db(args, cursor)
-        if operation == 'check_is_user_already_present':
-            return await check_is_user_already_present(args, cursor)
+        if operation == 'check_is_user_already_present_and_update_if_yes':
+            return await check_is_user_already_present_and_update_if_yes(args, cursor)
+        if operation == 'check_is_user_already_exist_in_user_db':
+            return await check_is_user_already_exist_in_user_db(args, cursor)
         if operation == 'add_new_user_to_db':
             return add_new_user_to_db(args, cursor)
+        if operation == 'update_deadline_of_batch':
+            return update_deadline_of_batch(args, cursor)
         # ====================================
         if operation == 'add_to_team':
             return add_to_team(args, cursor)
         if operation == 'check_team_id_unique':
             return await check_team_id_unique(args, cursor)
+
+        #  using some fun below for during project phase executions
+        if operation == 'check_user_under_batch':
+            return check_user_under_batch(args, cursor)
+        if operation == 'daily_activity_record_check_record':
+            return daily_activity_record_check_record(args, cursor)
+        if operation == 'add_daily_update_in_logs':
+            return add_daily_update_in_logs(args, cursor)
 
     except sqlite3.Error as error:
         print(f'error is : {error}')
