@@ -84,9 +84,9 @@ async def check_msg(msg_date, update, context):
     current_batch = ret_status[1]
     if status == 'during_planning_phase':
         #  get the return valid / invalid status then send message for each
-        await  execution.msg_process(msg_date, update, context,current_batch)
+        await  execution.msg_process(msg_date, update, context, current_batch)
     elif status == 'during_project_phase':
-        return_value = await  execution.project_phase(msg_date, update, context,current_batch)
+        return_value = await  execution.project_phase(msg_date, update, context, current_batch)
         if return_value:
             print('true returned')
         else:
@@ -119,10 +119,12 @@ async def grp_msg(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             )
             return
         await check_msg(update.message.date, update, context)
+        return
 
         # await  context.bot.send_message(chat_id=zero_dev_grp_id, text='ok')
     else:
         print(f'other chat :{update.message.text}')
+        return
 
 
 async def create_batch_group(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -150,9 +152,9 @@ async def create_batch_group(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 def map_user(row):
     columns = [
-        "tele_id", "user_name", "topic", "repository", "isExtended", "ExtDate",
-        "start", "end", "user_fullname", "user_firstname", "batch_id",
-        "tech_stack", "deadline_as_date", "team_id"
+        "tele_id", "user_name", "topic", "repository",
+        "user_fullname", "user_firstname", "batch_id",
+        "tech_stack", "team_id"
     ]
     return dict(zip(columns, row))
 

@@ -98,7 +98,8 @@ async def msg_process(msg_date, update: Update, context: ContextTypes.DEFAULT_TY
                                 if deadline > batch_deadline:
                                     print('found deadline is greater than batch')
                                     updated_deadline = await db_management.dbops('update_deadline_of_batch',
-                                                                                 deadline)
+                                                                                 [deadline,current_batch[1]])
+                                    print(f'updated deadline {updated_deadline}')
                                     if not updated_deadline:
                                         print('not updated any issues?')
                                         updated_deadline = deadline
@@ -115,8 +116,8 @@ async def msg_process(msg_date, update: Update, context: ContextTypes.DEFAULT_TY
                                     if status:
                                         break
 
-                                batch_start = str(current_batch[0])  # e.g. 20260327
-                                date_obj = datetime.strptime(batch_start, "%Y%m%d")
+                                date_after_planning = str(current_batch[0])  # e.g. 20260327
+                                date_obj = datetime.strptime(date_after_planning, "%Y%m%d") # 2026-03-27
 
                                 deadline_date = date_obj + timedelta(days=int(updated_deadline))
 
@@ -128,7 +129,9 @@ async def msg_process(msg_date, update: Update, context: ContextTypes.DEFAULT_TY
                                 # add to team
 
                                 team_return = await db_management.dbops('add_to_team',
-                                                                        [team_id, current_batch[0], mentions])
+                                                                        [team_id, current_batch[0], mentions,
+                                                                         int(updated_deadline), current_batch[5],
+                                                                         current_batch[1]])
                                 # return only true won't get list of added devs
                                 if team_return is True:
                                     # if all users are successfully added only then we add in devs table
@@ -136,7 +139,7 @@ async def msg_process(msg_date, update: Update, context: ContextTypes.DEFAULT_TY
                                     for user_id in mentions:
                                         user_dict = {'user_tele_id': user_id,
                                                      'deadline': int(updated_deadline),
-                                                     'deadline_full': current_batch[5],
+                                                     'deadline_full': deadline_full,
                                                      'topic': topic,
                                                      'github_repo': github_repo,
                                                      'tech': tech,
