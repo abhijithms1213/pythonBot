@@ -1,6 +1,7 @@
 import sqlite3
 from datetime import datetime, timedelta
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
+import datetime
 
 
 async def check_team_id_unique(args, cursor):
@@ -401,8 +402,10 @@ def add_to_team(args, cursor):
 
 def daily_activity_record_check_record(args, cursor):
     user_id = str(args[0])
+    msg_date = args[1]
+
     query = f'''
-    select * from daily_logs where tele_id = '{user_id}';
+    select * from daily_logs where tele_id = '{user_id}' and Date = {msg_date};
     '''
     # checks is user found in this batch
     cursor.execute(query)
@@ -412,45 +415,6 @@ def daily_activity_record_check_record(args, cursor):
         return None
     else:
         return result
-
-
-def add_daily_update_in_logs(args, cursor):
-    msg_date = args[0]
-    msg_content = args[3]
-    date_to_string = str(msg_date)
-    date_only = date_to_string[:10]
-    extracted = int(date_only.replace('-', ''))
-    user_id = args[1]
-    user_name = args[2]
-    check_entry = args[4]
-    if check_entry == 0:
-        query = f'''
-        insert into daily_logs (Date,tele_id,isUpdated,Activity,MsgLen,UserName,UpdateText) values ({extracted},'{user_id}',1,0,0,'{user_name}','{msg_content}');
-        '''
-
-        cursor.execute(query)
-        result = cursor.fetchone()
-        if result[0] == 1:
-            return True
-        else:
-            return False
-    else:
-        query = f'''
-            update daily_logs set isUpdated = 1,UpdateText= '{msg_content}' where  tele_id = {user_id};
-        '''
-
-        cursor.execute(query)
-        query = f'''
-            select isUpdated from daily_logs where tele_id = {user_id};
-        '''
-
-        cursor.execute(query)
-        result = cursor.fetchone()
-        if result[0] == 1:
-            print(f'after first entry {result} ')
-            return True
-        else:
-            return False
 
 
 def update_deadline_of_batch(args, cursor):
@@ -502,12 +466,124 @@ async def check_is_user_already_exist_in_user_db(args, cursor):
             return None
 
 
+def add_daily_update_in_logs(args, cursor):
+    msg_date = args[0]
+    # msg_date = 20260401
+    msg_content = args[3]
+    # date_to_string = str(msg_date)
+    # date_only = date_to_string[:10]
+    # extracted = int(date_only.replace('-', ''))
+    user_id = args[1]
+    user_name = args[2]
+    check_entry = args[4]
+
+    # check already updated ?
+    query = f'''
+           select isUpdated from daily_logs where tele_id = {user_id} and Date = {msg_date};
+       '''
+
+    cursor.execute(query)
+    result = cursor.fetchone()
+    if not result[0] == 1:
+        if check_entry == 0:
+            query = f'''
+            insert into daily_logs (Date,tele_id,isUpdated,Activity,MsgLen,UserName,UpdateText) values ({msg_date},'{user_id}',1,0,0,'{user_name}','{msg_content}');
+            '''
+
+            cursor.execute(query)
+            result = cursor.fetchone()
+            # if result[0] == 1:
+            #     return True
+            # else:
+            #     return False
+        else:
+            query = f'''
+                update daily_logs set isUpdated = 1,UpdateText= '{msg_content}' where  tele_id = {user_id} and Date = {msg_date};
+            '''
+
+            cursor.execute(query)
+            query = f'''
+                select isUpdated from daily_logs where tele_id = {user_id} and Date = {msg_date};
+            '''
+
+            cursor.execute(query)
+            result = cursor.fetchone()
+
+        print('now check the streak coz: isUpdate in both cases we made as: 1 ')
+
+        # Streak Logic =========================================================
+
+        query = f'''
+                select Date,isUpdated from daily_logs where tele_id= {user_id} order by Date desc limit 2;
+              '''
+        # first will be today's , second is last updated means result[0] and [1]
+
+        cursor.execute(query)
+        result = cursor.fetchall()
+
+        today_updation_status = result[0][1]
+        last_updated_status = result[1][1]
+
+        today_date = str(result[0][0])
+        last_updation_day = str(result[1][0])
+
+        today_formatted = datetime.datetime.strptime(today_date, "%Y%m%d")
+        last_updation_day_formatted = datetime.datetime.strptime(last_updation_day, "%Y%m%d")
+
+        yesterday = today_formatted - timedelta(days=1)
+
+        # now check is yesterday is last updation day
+        if yesterday == last_updation_day_formatted and last_updated_status == 1:
+
+            query = f'''
+                select streak from teams where devs_id = '{user_id}';
+                '''
+            cursor.execute(query)
+            result = cursor.fetchone()
+            print(f'streak count is {result}')
+            streak_count_db = result[0]
+            streak_count_db += 1
+
+            query = f'''
+               update teams set streak={streak_count_db} where devs_id = '{user_id}';
+            '''
+            cursor.execute(query)
+            query = f'''
+                select streak from teams where devs_id = '{user_id}';
+                           '''
+            cursor.execute(query)
+            result = cursor.fetchone()
+            print(f'after streak count is from db: {result}')
+
+            return True
+        else:
+            print('add as "1" as streak ')
+            query = f'''
+                         update teams set streak=1 where devs_id = '{user_id}';
+                      '''
+            cursor.execute(query)
+            query = f'''
+                          select streak from teams where devs_id = '{user_id}';
+                                     '''
+            cursor.execute(query)
+            result = cursor.fetchone()
+
+            print(f'the last updated results: {result} ')
+            return True
+    else:
+        print('already updated u before')
+        return False
+
+
 def add_activity_msg_first_entry_today(args, cursor):
     user_id = args[0]
     msg = args[1]
     user_name = args[3]
 
     msg_date = args[2]
+    print(f'msg date in activity method: {msg_date}')
+    # msg_date = 20260401
+    # msg_date = '2026-04-01'
     date_to_string = str(msg_date)
     date_only = date_to_string[:10]
     extracted = int(date_only.replace('-', ''))
@@ -534,7 +610,7 @@ def add_activity_msg_first_entry_today(args, cursor):
     else:
         # fetch already occuring MsgLength and sum up if sum > 20 then we will make Activity as 1 else only update msg length
         query = f'''
-                  select Activity,MsgLen from daily_logs where tele_id = {user_id};
+                  select Activity,MsgLen from daily_logs where tele_id = {user_id} and Date = {msg_date};
               '''
 
         cursor.execute(query)
@@ -547,7 +623,7 @@ def add_activity_msg_first_entry_today(args, cursor):
             msg_added_length = msg_length_from_db + msg_len  # adding length from db with current msg length
             if msg_added_length > 20:
                 query = f'''
-                    update daily_logs set Activity = 1,MsgLen= {msg_added_length} where tele_id = {user_id};
+                    update daily_logs set Activity = 1,MsgLen= {msg_added_length} where tele_id = {user_id} and Date = {msg_date};
                 '''
 
                 cursor.execute(query)
@@ -562,7 +638,7 @@ def add_activity_msg_first_entry_today(args, cursor):
                     return False
             else:
                 query = f'''
-                               update daily_logs set MsgLen= {msg_added_length} where tele_id = {user_id};
+                               update daily_logs set MsgLen= {msg_added_length} where tele_id = {user_id} and Date = {msg_date};
                            '''
 
                 cursor.execute(query)

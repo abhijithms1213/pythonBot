@@ -205,6 +205,13 @@ async def msg_process(msg_date, update: Update, context: ContextTypes.DEFAULT_TY
 
 
 async def project_phase(msg_date, update: Update, context: ContextTypes.DEFAULT_TYPE, current_batch):
+
+
+    date_to_string = str(msg_date)
+    date_only = date_to_string[:10]
+    sanitized_date = int(date_only.replace('-', ''))
+    print(f'msg date: {date_only} and sanitized :{sanitized_date}')
+
     current_batch = current_batch
     user_id = update.message.from_user.id
     user_name = update.message.chat.username
@@ -219,7 +226,7 @@ async def project_phase(msg_date, update: Update, context: ContextTypes.DEFAULT_
     else:
         additional_points = 0
         # checks is user's data already here in logs with current date
-        is_user = await db_management.dbops('daily_activity_record_check_record', [user_id])
+        is_user = await db_management.dbops('daily_activity_record_check_record', [user_id,sanitized_date])
         print(f'user :{is_user} ')
         if not is_user:
             match = re.search(r'update:\s*(.*)', msg_lower, re.DOTALL)
@@ -229,13 +236,13 @@ async def project_phase(msg_date, update: Update, context: ContextTypes.DEFAULT_
                 message = match.group(1).strip()
                 print(f'update msg: {message} and length {len(message)}')
                 is_user = await db_management.dbops('add_daily_update_in_logs',
-                                                    [msg_date, user_id, status[0][0], message,
+                                                    [sanitized_date, user_id, status[0][0], message,
                                                      0])  # 0,0 is user_name last 0 means first entry
                 return True
 
             else:
                 is_updated = await db_management.dbops('add_activity_msg_first_entry_today',
-                                                       [user_id, msg, msg_date, status[0][0],
+                                                       [user_id, msg, sanitized_date, status[0][0],
                                                         0])  # last 0 means first entry
 
                 if is_updated:
@@ -248,14 +255,14 @@ async def project_phase(msg_date, update: Update, context: ContextTypes.DEFAULT_
             if match:
                 message = match.group(1).strip()
                 is_updated = await db_management.dbops('add_daily_update_in_logs',
-                                                       [msg_date, user_id, status[0][0], message,
+                                                       [sanitized_date, user_id, status[0][0], message,
                                                         1])  # 0,0 is user_name last 0 means first entry
                 if is_updated:
                     print(f'it"s after first update msg: {message} and length {len(message)}')
                     return True
             else:
                 activity_status = await db_management.dbops('add_activity_msg_first_entry_today',
-                                                         [user_id, msg, msg_date, status[0][0],
+                                                         [user_id, msg, sanitized_date, status[0][0],
                                                           1])  # last 0 means first entry
                 print('msg after first record it"s activity')
         return True
