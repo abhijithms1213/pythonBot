@@ -229,18 +229,33 @@ async def project_phase(msg_date, update: Update, context: ContextTypes.DEFAULT_
                 message = match.group(1).strip()
                 print(f'update msg: {message} and length {len(message)}')
                 is_user = await db_management.dbops('add_daily_update_in_logs',
-                                                    [msg_date, user_id, status[0][0], message])  # 0,0 is user_name
+                                                    [msg_date, user_id, status[0][0], message,
+                                                     0])  # 0,0 is user_name last 0 means first entry
                 return True
 
             else:
-                found_status = await db_management.dbops('add_activity_msg_first_entry_today',
-                                                         [user_id, msg, msg_date, status[0][0]])
-                print('its not update msg its daily activity')
-                return True
+                is_updated = await db_management.dbops('add_activity_msg_first_entry_today',
+                                                       [user_id, msg, msg_date, status[0][0],
+                                                        0])  # last 0 means first entry
+
+                if is_updated:
+                    print('its not update msg its daily activity')
+                    return True
         else:
+            #  it's not first msg so already tuple added in daily_log table
             print('last else worked')
             match = re.search(r'update:\s*(.*)', msg_lower, re.DOTALL)
             if match:
                 message = match.group(1).strip()
-                print(f'update msg: {message} and length {len(message)}')
-            return True
+                is_updated = await db_management.dbops('add_daily_update_in_logs',
+                                                       [msg_date, user_id, status[0][0], message,
+                                                        1])  # 0,0 is user_name last 0 means first entry
+                if is_updated:
+                    print(f'it"s after first update msg: {message} and length {len(message)}')
+                    return True
+            else:
+                activity_status = await db_management.dbops('add_activity_msg_first_entry_today',
+                                                         [user_id, msg, msg_date, status[0][0],
+                                                          1])  # last 0 means first entry
+                print('msg after first record it"s activity')
+        return True

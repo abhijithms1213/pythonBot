@@ -422,13 +422,35 @@ def add_daily_update_in_logs(args, cursor):
     extracted = int(date_only.replace('-', ''))
     user_id = args[1]
     user_name = args[2]
-    query = f'''
-    insert into daily_logs (Date,tele_id,isUpdated,Activity,MsgLen,UserName,UpdateText) values ({extracted},'{user_id}',1,0,0,'{user_name}','{msg_content}');
-    '''
+    check_entry = args[4]
+    if check_entry == 0:
+        query = f'''
+        insert into daily_logs (Date,tele_id,isUpdated,Activity,MsgLen,UserName,UpdateText) values ({extracted},'{user_id}',1,0,0,'{user_name}','{msg_content}');
+        '''
 
-    cursor.execute(query)
-    cursor.fetchall()
-    return True
+        cursor.execute(query)
+        result = cursor.fetchone()
+        if result[0] == 1:
+            return True
+        else:
+            return False
+    else:
+        query = f'''
+            update daily_logs set isUpdated = 1,UpdateText= '{msg_content}' where  tele_id = {user_id};
+        '''
+
+        cursor.execute(query)
+        query = f'''
+            select isUpdated from daily_logs where tele_id = {user_id};
+        '''
+
+        cursor.execute(query)
+        result = cursor.fetchone()
+        if result[0] == 1:
+            print(f'after first entry {result} ')
+            return True
+        else:
+            return False
 
 
 def update_deadline_of_batch(args, cursor):
@@ -490,23 +512,65 @@ def add_activity_msg_first_entry_today(args, cursor):
     date_only = date_to_string[:10]
     extracted = int(date_only.replace('-', ''))
     msg_len = len(msg)
-    if msg_len > 20:
-        print('msg above 20')
-        query = f'''
-        insert into daily_logs (Date,tele_id,Activity,MsgLen,UserName) values ({extracted},'{user_id}',1,{msg_len},'{user_name}');
-        '''
+    check_entry = args[4]
+    if check_entry == 0:
+        if msg_len > 20:
+            print('msg above 20')
+            query = f'''
+            insert into daily_logs (Date,tele_id,Activity,MsgLen,UserName) values ({extracted},'{user_id}',1,{msg_len},'{user_name}');
+            '''
 
-        cursor.execute(query)
-        cursor.fetchall()
+            cursor.execute(query)
+            cursor.fetchall()
+        else:
+            print('msg len under 20')
+            query = f'''
+                 insert into daily_logs (Date,tele_id,Activity,MsgLen,UserName) values ({extracted},'{user_id}',0,{msg_len},'{user_name}');
+                 '''
+
+            cursor.execute(query)
+            cursor.fetchall()
+        return True
     else:
-        print('msg len under 20')
+        # fetch already occuring MsgLength and sum up if sum > 20 then we will make Activity as 1 else only update msg length
         query = f'''
-             insert into daily_logs (Date,tele_id,Activity,MsgLen,UserName) values ({extracted},'{user_id}',0,{msg_len},'{user_name}');
-             '''
+                  select Activity,MsgLen from daily_logs where tele_id = {user_id};
+              '''
 
         cursor.execute(query)
-        cursor.fetchall()
-    return True
+        result = cursor.fetchone()
+        print(f'result of after daily log: {result}')
+        activity = result[0]
+        msg_length_from_db = result[1]
+
+        if not activity == 1:  # means not filled 20 length race
+            msg_added_length = msg_length_from_db + msg_len  # adding length from db with current msg length
+            if msg_added_length > 20:
+                query = f'''
+                    update daily_logs set Activity = 1,MsgLen= {msg_added_length} where tele_id = {user_id};
+                '''
+
+                cursor.execute(query)
+                query = f'''
+                    select Activity from daily_logs where tele_id = {user_id};
+                '''
+                cursor.execute(query)
+                result = cursor.fetchone()
+                if result[0] == 1:
+                    return True
+                else:
+                    return False
+            else:
+                query = f'''
+                               update daily_logs set MsgLen= {msg_added_length} where tele_id = {user_id};
+                           '''
+
+                cursor.execute(query)
+                return True
+
+        else:
+            print('Activity is already True, u made it')
+            return True
 
 
 def streak_update(args, cursor):
