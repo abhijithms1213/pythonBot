@@ -110,10 +110,15 @@ def addnewbatch(date, cursor):
                 continue
 
         plan_finish_date = 2
+        project_starts = 3
         deadline = 11
 
         batch_start = str(sanitizedDate)  # e.g. 20260327
         date_obj = datetime.strptime(batch_start, "%Y%m%d")
+
+        # projects start date is +1 from planning
+        project_starts = date_obj + timedelta(days=project_starts)
+        project_starts_formatted = project_starts.strftime("%Y%m%d")
 
         # Step 1: batch finish date
         finish_date = date_obj + timedelta(days=plan_finish_date)
@@ -127,7 +132,7 @@ def addnewbatch(date, cursor):
         print(f"deadline full    : {deadline_full}")
 
         cursor.execute(f'''
-        insert into batches (Date_id,Planning_Date,isCurrent,deadline,isExtended,deadline_as_date) values ({sanitizedDate},{finish_date_full},1,{deadline},0,{deadline_full}); 
+        insert into batches (Date_id,Planning_Date,isCurrent,deadline,isExtended,deadline_as_date,project_starts) values ({sanitizedDate},{finish_date_full},1,{deadline},0,{deadline_full},{project_starts_formatted}); 
                         ''')
         # 1 => currently running true , 14 => as default deadline, 0 => boolean that not Extending at initial so it's False
         cursor.execute('select * from batches;')
@@ -158,8 +163,12 @@ def add_new_user_to_db(args: list, cursor):
     user_name = args[1]
     user_fullname = args[2]
     user_first_name = args[3]
+    if not user_name:
+        user_name=''
+    else:
+        user_name=f'@{user_name}'
     query = f'''
-    insert into devs values ('{user_id}','{user_name}','{user_fullname}','{user_first_name}',0,0);
+    insert into devs values ('{user_id}','{user_name}','{user_fullname}','{user_first_name}',0,0,0);
     '''
     cursor.execute(query)
     query = f'''
@@ -219,14 +228,16 @@ async def check_is_user_already_present_and_update_if_yes(args, cursor):
             # +----------+---------+--------------+------------+---------+----------+-----+------------------+--------+------------------------+-----------------------------+--------------+
 
             query = f'''
-                select * from teams where devs_id = '{user_id}';
+                select * from teams where team_id = '{result[5]}';
             '''
             cursor.execute(query)
+            # returning  wrong , combine two tables
             result_team = cursor.fetchone()
 
             result_teams = cursor.fetchone()
-            print(f'resulted team {result_teams}')
-            return ['updated_old', result_team, first_name]
+            # print(f'resulted team {result_teams}')
+            return ['updated_old', result_team, first_name,
+                    result[5]]  # result means user's data , and take the team id from it
 
 
 async def add_dev_to_db(args, cursor):
@@ -237,11 +248,11 @@ async def add_dev_to_db(args, cursor):
     # user details
     user_id = args[0]
 
-    if not isinstance(user_id, str):
-        chat_usr = await context.bot.get_chat(chat_id=user_id)
-        first_name = chat_usr.first_name
-        fullname = chat_usr.full_name
-        user_name = chat_usr.username
+    # if not isinstance(user_id, str):
+    #     chat_usr = await context.bot.get_chat(chat_id=user_id)
+    #     first_name = chat_usr.first_name
+    #     fullname = chat_usr.full_name
+    #     user_name = chat_usr.username
 
     topic = user_dictionary['topic']
     deadline = user_dictionary['deadline']
@@ -304,6 +315,10 @@ async def add_dev_to_db(args, cursor):
         cursor.execute(query)
         result: list = cursor.fetchone()
         print(f'result {result}')
+        chat_usr = await context.bot.get_chat(chat_id=user_id)
+        first_name = chat_usr.first_name
+        fullname = chat_usr.full_name
+        user_name = chat_usr.username
         if not result:
             print('not found any records so add fresh')
             print(f"""
@@ -319,7 +334,7 @@ async def add_dev_to_db(args, cursor):
             tech_stack    : {tech_stack}
             """)
             query = f'''
-            insert into devs ( tele_id, user_name, user_fullname, user_firstname, batch_id,team_id) values ('{user_id}','{user_name}','{fullname}','{first_name}',{current_batch[0]}, {team_id});
+            insert into devs ( tele_id, user_name, user_fullname, user_firstname, batch_id,team_id) values ('{user_id}','','{fullname}','{first_name}',{current_batch[0]}, {team_id});
             '''
             cursor.execute(query)
             return [0, user_id]
@@ -336,32 +351,32 @@ async def add_dev_to_db(args, cursor):
             # it won't work , coz in team already failed if found the document of this user in teams table
             print('found already in batch so not adding')
             return [2, user_id]
-    # if result[0] is None:
-    #     print('I found @ mention, and it must add through /join')
-    #     return '@'
 
 
-def add_to_team(args, cursor):
+async def add_to_team(args, cursor):
     # after bach team will be cleared
     team_id = args[0]
     team_name = args[7]
     batch_id = args[1]
     devs_id = args[2]
-    deadline = args[3]
-    deadline_full = args[4]
-    start_date = args[5]
+    coming_deadline = args[3]
+    batch_deadline = args[8]
+    # argument 4 declined
+    planning_finish_date = args[5]  # planning finish date
     project_infos = args[6]
 
     topic = project_infos['topic']
     github_repo = project_infos['github_repo']
     tech_stack = project_infos['tech']
 
-    date_planning = str(start_date)  # e.g. 20260327
+    date_planning = str(planning_finish_date)  # e.g. 20260327
     date_obj = datetime.strptime(date_planning, "%Y%m%d")  # 2026-03-27
     date_after_planning = date_obj + timedelta(days=int(1))
     start = date_after_planning.strftime("%Y%m%d")  # 20260410
 
-    print(f'devs ids passed to add team:{devs_id}')
+    # date_obj = datetime.strptime(date_after_planning, "%Y%m%d")  # 2026-03-27
+
+    print(f'devs ids passed to add team:{devs_id} current batch deadline {batch_deadline}')
     isBreaked = False
     imposter: str = ''
     for dev in devs_id:
@@ -369,37 +384,54 @@ def add_to_team(args, cursor):
         # circle through each dev's if any dev already joined in team we break entirely ,
         # because if a new user need to be added to this group we're already providing 'add' command
         query = f'''
-            select * from teams where devs_id = '{dev}';
+            select * from devs where tele_id = '{dev}';
             '''
         cursor.execute(query)
         result: list = cursor.fetchone()
-        print(f'result {result}')
-        if result:
+        print(f'result is non or xxxx:   {result}')
+        if result is None:
+            continue
+        elif not result[5]:
+            continue
+        else:
             isBreaked = True
             imposter = f'{dev}'
             break
-        else:
-            continue
+        # else:
+        #     continue
 
     if isBreaked:  # it means any of the mention we found in already teamed,then entirely we ignore
         print('breaked because i found that dev already joined another team')
         isBreaked = False
         return [False, imposter]
     else:
-        for dev in devs_id:
-            query = f'''
-            insert into teams (batch_id,team_id,devs_id,isExtended,ExtDate,start,end,deadline_as_date,topic,repository,tech_stack,team_name) values ({batch_id},{team_id},'{dev}',0,0,{start},{deadline},{deadline_full},'{topic}','{github_repo}','{tech_stack}','{team_name}');
-            '''
-            #  remove those fields from usr
-            print(f'query while adding team {query}')
-            cursor.execute(query)
-            res = cursor.fetchall()
-            print(f'result after adding in team {res}')
+        if coming_deadline > batch_deadline:  # eg: 14 deadline > 11 current batch's deadline
+            print('found deadline is greater than batch')
+            updated_deadline = await dbops('update_deadline_of_batch',
+                                           [coming_deadline, start])
+            print(f'updated deadline {updated_deadline}')
+            if not updated_deadline:
+                print('not updated any issues?')
+                updated_deadline = coming_deadline
+        else:
+            print('deadline is under')
+            updated_deadline = coming_deadline
 
-        return True
-    # return True
-    # else:
-    #     return False
+        deadline_date = date_obj + timedelta(days=int(updated_deadline))
+        deadline_full = deadline_date.strftime("%Y%m%d")  # 20260410
+
+        # added team
+        query = f'''
+        insert into teams (batch_id,team_id,devs_id,isExtended,ExtDate,start,end,deadline_as_date,topic,repository,tech_stack,team_name) values ({batch_id},{team_id},'dev',0,0,{start},{updated_deadline},{deadline_full},'{topic}','{github_repo}','{tech_stack}','{team_name}');
+        '''
+        #  remove those fields from usr
+        print(f'query while adding team {query}')
+        cursor.execute(query)
+        res = cursor.fetchall()
+        print(f'result after adding in team {res}')
+        # for dev in devs_id:
+
+        return [True, updated_deadline, deadline_date, deadline_full, team_id]
 
 
 def daily_activity_record_check_record(args, cursor):
@@ -680,7 +712,7 @@ async def dbops(operation, args):
             return update_deadline_of_batch(args, cursor)
         # ====================================
         if operation == 'add_to_team':
-            return add_to_team(args, cursor)
+            return await add_to_team(args, cursor)
         if operation == 'check_team_name_unique':
             return await check_team_name_unique(args, cursor)
         if operation == 'check_team_id_unique':

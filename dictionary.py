@@ -331,7 +331,7 @@ async def join_grp(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         status = await db_management.dbops('add_new_user_to_db', [user_id, user_name, user_fullname, user_first_name])
         if status:
             await context.bot.send_message(chat_id=update.message.chat_id,
-                                           text='hooray u joined in our group , go and start your dev journey')
+                                          text='hooray u joined in our group , go and start your dev journey')
     elif status_msg == 'exist':
         print('found user so not need to add anymore send a already added warning')
         await context.bot.send_message(chat_id=update.message.chat_id, text=f'already u joined , explore our group')

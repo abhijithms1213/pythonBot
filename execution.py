@@ -93,21 +93,21 @@ async def msg_process(msg_date, update: Update, context: ContextTypes.DEFAULT_TY
                                 # else:
 
                                 # check if current deadline is under batch's deadline else update batch's deadline also
-                                batch_deadline = current_batch[3]
-                                deadline = int(deadline)
-
-                                #  it not call here coz if no team created ,but it update deadline
-                                if deadline > batch_deadline:
-                                    print('found deadline is greater than batch')
-                                    updated_deadline = await db_management.dbops('update_deadline_of_batch',
-                                                                                 [deadline, current_batch[1]])
-                                    print(f'updated deadline {updated_deadline}')
-                                    if not updated_deadline:
-                                        print('not updated any issues?')
-                                        updated_deadline = deadline
-                                else:
-                                    print('deadline is under')
-                                    updated_deadline = deadline
+                                # batch_deadline = current_batch[3]
+                                # deadline = int(deadline)
+                                #
+                                # #  it not call here coz if no team created ,but it update deadline
+                                # if deadline > batch_deadline:
+                                #     print('found deadline is greater than batch')
+                                #     updated_deadline = await db_management.dbops('update_deadline_of_batch',
+                                #                                                  [deadline, current_batch[1]])
+                                #     print(f'updated deadline {updated_deadline}')
+                                #     if not updated_deadline:
+                                #         print('not updated any issues?')
+                                #         updated_deadline = deadline
+                                # else:
+                                #     print('deadline is under')
+                                #     updated_deadline = deadline
 
                                 # adding team id
                                 while True:
@@ -119,7 +119,7 @@ async def msg_process(msg_date, update: Update, context: ContextTypes.DEFAULT_TY
                                         break
 
                                 while True:
-                                    if len(mentions)==1:
+                                    if len(mentions) == 1:
                                         print(f'mentions : from len 1: {mentions}')
                                         team_name = helpers.get_random_solo_name()
                                     else:
@@ -127,20 +127,16 @@ async def msg_process(msg_date, update: Update, context: ContextTypes.DEFAULT_TY
                                         print(f'team names are ::"":: {team_name}')
 
                                     status = await db_management.dbops('check_team_name_unique',
-                                                                           team_name)
+                                                                       team_name)
                                     if status:
                                         break
 
-                                date_after_planning = str(current_batch[0])  # e.g. 20260327
-                                date_obj = datetime.strptime(date_after_planning, "%Y%m%d")  # 2026-03-27
-
-                                deadline_date = date_obj + timedelta(days=int(updated_deadline))
-
-                                deadline_full = deadline_date.strftime("%Y%m%d")  # 20260410
-                                print(f"deadline full : {deadline_full}")
-                                print(
-                                    f'batch info : {current_batch[0]} and deadline: {current_batch[3]}')  # i currently at this pos.
-
+                                # date_after_planning = str(current_batch[0])  # e.g. 20260327
+                                # date_obj = datetime.strptime(date_after_planning, "%Y%m%d")  # 2026-03-27
+                                #
+                                # deadline_date = date_obj + timedelta(days=int(updated_deadline))
+                                #
+                                # deadline_full = deadline_date.strftime("%Y%m%d")  # 20260410
                                 # add to team
                                 core_infos = {
                                     'topic': topic,
@@ -150,20 +146,26 @@ async def msg_process(msg_date, update: Update, context: ContextTypes.DEFAULT_TY
 
                                 team_return = await db_management.dbops('add_to_team',
                                                                         [team_id, current_batch[0], mentions,
-                                                                         int(updated_deadline), current_batch[5],
-                                                                         current_batch[1], core_infos,team_name])
+                                                                         int(deadline), current_batch[5],
+                                                                         # deadline as date [5] don't take
+                                                                         current_batch[1], core_infos, team_name,
+                                                                         current_batch[3]])
                                 # return only true won't get list of added devs
-                                if team_return is True:
+                                if team_return[0] is True:
+                                    deadline_returned = team_return[1]
+                                    deadline_as_formate_returned = team_return[2]
+                                    deadline_full_returned = team_return[3]
+                                    team_id_returned = team_return[4]
                                     # if all users are successfully added only then we add in devs table
                                     print('successfully added all users in teams table')
                                     for user_id in mentions:
                                         user_dict = {'user_tele_id': user_id,
-                                                     'deadline': int(updated_deadline),
-                                                     'deadline_full': deadline_full,
+                                                     'deadline': int(deadline_returned),
+                                                     'deadline_full': deadline_full_returned,
                                                      'topic': topic,
                                                      'github_repo': github_repo,
                                                      'tech': tech,
-                                                     'team_id': team_id
+                                                     'team_id': team_id_returned
                                                      }
                                         return_val = await db_management.dbops('add_dev_to_db',
                                                                                [user_id, user_dict, context,
@@ -213,7 +215,8 @@ async def msg_process(msg_date, update: Update, context: ContextTypes.DEFAULT_TY
                                 #              'tech': tech,
                                 #              'team_id': team_id
                                 #              }
-                                return_list = ['valid', dev_currently_joined, dev_not_joined,topic,tech,github_repo,deadline,deadline_date.date(),team_name]
+                                return_list = ['valid', dev_currently_joined, dev_not_joined, topic, tech, github_repo,
+                                               deadline, deadline_as_formate_returned, team_name]
                                 dev_not_joined.clear()
                                 dev_already_joined.clear()
                                 dev_currently_joined.clear()
