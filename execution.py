@@ -110,13 +110,23 @@ async def msg_process(msg_date, update: Update, context: ContextTypes.DEFAULT_TY
                                 #     updated_deadline = deadline
 
                                 # adding team id
+                                team_id_attempts = 0
+
                                 while True:
                                     team_id = helpers.randint()
                                     print(f'team id is ::"":: {team_id}')
-                                    status = await db_management.dbops('check_team_id_unique',
-                                                                       team_id)
+
+                                    status = await db_management.dbops('check_team_id_unique', team_id)
+
+                                    team_id_attempts += 1
+                                    if team_id_attempts >= 10:
+                                        return 'invalid_something_went_wrong'
+
                                     if status:
                                         break
+
+                                # TEAM NAME GENERATION
+                                team_name_attempts = 0
 
                                 while True:
                                     if len(mentions) == 1:
@@ -126,8 +136,12 @@ async def msg_process(msg_date, update: Update, context: ContextTypes.DEFAULT_TY
                                         team_name = helpers.get_random_team_name()
                                         print(f'team names are ::"":: {team_name}')
 
-                                    status = await db_management.dbops('check_team_name_unique',
-                                                                       team_name)
+                                    status = await db_management.dbops('check_team_name_unique', team_name)
+
+                                    team_name_attempts += 1
+                                    if team_name_attempts >= 10:
+                                        return 'invalid_something_went_wrong'
+
                                     if status:
                                         break
 
