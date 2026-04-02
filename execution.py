@@ -65,13 +65,13 @@ async def msg_process(msg_date, update: Update, context: ContextTypes.DEFAULT_TY
             print(f'deadlin captured is {deadline}')
             if deadline not in deadlines:
                 print('deadline found as invalid')
-                return 'invalid'
+                return 'error_invalid_deadline'
             if op.contains(lower_msg, find_topic):
                 # topic = str(re.findall('"([^"]*)"', lower_msg)).replace("'", "").replace('[', '').replace(']', '')
                 topic = re.search(r'/topic\s*([^\n]+)', lower_msg).group(1).strip()
                 if not topic:
                     print(f'topic not found')
-                    return 'invalid'
+                    return 'error_no_topic'
                 else:
                     print(f'topic is : {topic}')
                     tech_stack = re.search(r'/tech\s*([^\n]+)', lower_msg)
@@ -95,6 +95,8 @@ async def msg_process(msg_date, update: Update, context: ContextTypes.DEFAULT_TY
                                 # check if current deadline is under batch's deadline else update batch's deadline also
                                 batch_deadline = current_batch[3]
                                 deadline = int(deadline)
+
+                                #  it not call here coz if no team created ,but it update deadline
                                 if deadline > batch_deadline:
                                     print('found deadline is greater than batch')
                                     updated_deadline = await db_management.dbops('update_deadline_of_batch',
@@ -113,6 +115,19 @@ async def msg_process(msg_date, update: Update, context: ContextTypes.DEFAULT_TY
                                     print(f'team id is ::"":: {team_id}')
                                     status = await db_management.dbops('check_team_id_unique',
                                                                        team_id)
+                                    if status:
+                                        break
+
+                                while True:
+                                    if len(mentions)==1:
+                                        print(f'mentions : from len 1: {mentions}')
+                                        team_name = helpers.get_random_solo_name()
+                                    else:
+                                        team_name = helpers.get_random_team_name()
+                                        print(f'team names are ::"":: {team_name}')
+
+                                    status = await db_management.dbops('check_team_name_unique',
+                                                                           team_name)
                                     if status:
                                         break
 
@@ -136,7 +151,7 @@ async def msg_process(msg_date, update: Update, context: ContextTypes.DEFAULT_TY
                                 team_return = await db_management.dbops('add_to_team',
                                                                         [team_id, current_batch[0], mentions,
                                                                          int(updated_deadline), current_batch[5],
-                                                                         current_batch[1],core_infos])
+                                                                         current_batch[1], core_infos,team_name])
                                 # return only true won't get list of added devs
                                 if team_return is True:
                                     # if all users are successfully added only then we add in devs table
@@ -168,45 +183,59 @@ async def msg_process(msg_date, update: Update, context: ContextTypes.DEFAULT_TY
                                             # add_user(user_id)
                                         elif status == 1:
                                             dev_currently_joined.append(developer_id_return)
+                                            dev_not_joined.append(developer_id_return)
                                             print('added user with user_name @ , so highly recommended to join')
                                         elif status == 3:
+                                            # it won't work because if already joined if original_user_id == user_joined_name it cannot true, if it's true then already failed in team check
                                             dev_not_joined.append(developer_id_return)
                                             dev_already_joined.append(developer_id_return)
                                             print('found user didnt updated in /join')
                                         else:
+                                            # it won't work because if already joined , team have record then make false
                                             dev_already_joined.append(developer_id_return)
                                             print("found user so now don't update")
+
                                 else:
                                     imposter = team_return[1]
                                     print(
                                         f'he:{imposter} is already joined so ignoring not added anyone please ensure')
-                                    return 'invalid'
+                                    return ['error_user_exist', imposter]
 
                                 # clear list after all msg sent
                                 print(
                                     f'devs not /join : {dev_not_joined} & already joined in this batch: {dev_already_joined} & new joins: {dev_currently_joined}')
+                                print(f'devs already joined check {dev_already_joined}')
+                                # user_dict = {'user_tele_id': user_id,
+                                #              'deadline': int(updated_deadline),
+                                #              # 'deadline_full': deadline_full, or deadline_dae
+                                #              'topic': topic,
+                                #              'github_repo': github_repo,
+                                #              'tech': tech,
+                                #              'team_id': team_id
+                                #              }
+                                return_list = ['valid', dev_currently_joined, dev_not_joined,topic,tech,github_repo,deadline,deadline_date.date(),team_name]
                                 dev_not_joined.clear()
                                 dev_already_joined.clear()
                                 dev_currently_joined.clear()
                                 print('all lists cleared')
-                                return 'valid'
+                                return return_list
                             else:
                                 continue
                     else:
                         print('tech stack not found')
-                        return 'invalid'
+                        return 'error_no_tech'
 
                 print('not found github link')
-                return 'invalid'
+                return 'error_no_github'
             else:
                 print('topic not found')
-                return 'invalid'
+                return 'error_no_topic'
         else:
             print('deadline not found')
-            return 'invalid'
+            return 'error_no_deadline'
     else:
         print("didn't found starter")
-        return 'invalid'
+        return 0
 
 
 async def project_phase(msg_date, update: Update, context: ContextTypes.DEFAULT_TYPE, current_batch):
