@@ -34,14 +34,16 @@ def check_team_under_batch(args, cursor):
     batch_id = int(args[0])
     user_id = str(args[1])
     # print(f'batch : {batch_id} and {user_id}')
+
+    # select * from teams where batch_id = {batch_id} and devs_id = '{user_id}';
     query = f'''
-    select * from teams where batch_id = {batch_id} and devs_id = '{user_id}';
+    select devs.tele_id,devs.streak from devs join teams on (teams.team_id = devs.team_id) where devs.batch_id = {batch_id} and devs.tele_id= '{user_id}';
     '''
     # checks is user found in this batch
     cursor.execute(query)
     result = cursor.fetchall()
-    # print(f'from raw user is :{result} and query: {query}')
-    if result is None:
+    print(f'check team under and from raw user is :{result} and query: {query}')
+    if result is None or not result:
         return None
     else:
         return result
@@ -164,9 +166,9 @@ def add_new_user_to_db(args: list, cursor):
     user_fullname = args[2]
     user_first_name = args[3]
     if not user_name:
-        user_name=''
+        user_name = ''
     else:
-        user_name=f'@{user_name}'
+        user_name = f'@{user_name}'
     query = f'''
     insert into devs values ('{user_id}','{user_name}','{user_fullname}','{user_first_name}',0,0,0);
     '''
@@ -518,18 +520,14 @@ def add_daily_update_in_logs(args, cursor):
 
     cursor.execute(query)
     result = cursor.fetchone()
-    if not result[0] == 1:
-        if check_entry == 0:
+    if not result or not result[0] == 1:
+        if check_entry == 0:  # means the today's first msg is update , 1 means after first entry
             query = f'''
             insert into daily_logs (Date,tele_id,isUpdated,Activity,MsgLen,UserName,UpdateText) values ({msg_date},'{user_id}',1,0,0,'{user_name}','{msg_content}');
             '''
 
             cursor.execute(query)
             result = cursor.fetchone()
-            # if result[0] == 1:
-            #     return True
-            # else:
-            #     return False
         else:
             query = f'''
                 update daily_logs set isUpdated = 1,UpdateText= '{msg_content}' where  tele_id = {user_id} and Date = {msg_date};
@@ -554,6 +552,19 @@ def add_daily_update_in_logs(args, cursor):
 
         cursor.execute(query)
         result = cursor.fetchall()
+        print(f'fetch all from update:{result} and {result[0]} and {result[0][1]} ')
+
+        if len(result) == 1:  # meanS is it's first record (in table then no second doc for compare)
+            query = f'''
+                         update daily_logs set isUpdated = 1,UpdateText= '{msg_content}' where  tele_id = {user_id} and Date = {msg_date};
+                     '''
+
+            cursor.execute(query)
+            query = f'''
+                     update devs set streak=1  where tele_id = '{user_id}';
+                  '''
+            cursor.execute(query)
+            return True
 
         today_updation_status = result[0][1]
         last_updated_status = result[1][1]
@@ -570,7 +581,7 @@ def add_daily_update_in_logs(args, cursor):
         if yesterday == last_updation_day_formatted and last_updated_status == 1:
 
             query = f'''
-                select streak from teams where devs_id = '{user_id}';
+                select streak from devs where tele_id = '{user_id}';
                 '''
             cursor.execute(query)
             result = cursor.fetchone()
@@ -579,11 +590,11 @@ def add_daily_update_in_logs(args, cursor):
             streak_count_db += 1
 
             query = f'''
-               update teams set streak={streak_count_db} where devs_id = '{user_id}';
+               update devs set streak={streak_count_db} where tele_id = '{user_id}';
             '''
             cursor.execute(query)
             query = f'''
-                select streak from teams where devs_id = '{user_id}';
+                select streak from devs where tele_id = '{user_id}';
                            '''
             cursor.execute(query)
             result = cursor.fetchone()
@@ -593,11 +604,11 @@ def add_daily_update_in_logs(args, cursor):
         else:
             print('add as "1" as streak ')
             query = f'''
-                         update teams set streak=1 where devs_id = '{user_id}';
+                         update devs set streak=1 where tele_id = '{user_id}';
                       '''
             cursor.execute(query)
             query = f'''
-                          select streak from teams where devs_id = '{user_id}';
+                          select streak from teams where tele_id = '{user_id}';
                                      '''
             cursor.execute(query)
             result = cursor.fetchone()
