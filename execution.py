@@ -35,6 +35,8 @@ async def mention_check(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     mentions.append(mention_text)
 
     # mentions.append(update.message.from_user.id)
+    await db_management.dbops('extract_dev_details',
+                              mentions)
     return mentions
 
 
@@ -84,30 +86,6 @@ async def msg_process(msg_date, update: Update, context: ContextTypes.DEFAULT_TY
                                 print(f'its all set and valid repo is {github_repo}')
                                 #  get mentions from the message
                                 mentions = await mention_check(update, context)
-
-                                #  didn't need this , because we already confirmed batch found that's why this method exec.
-                                # current_batch = await db_management.dbops('get_current_batch', '')
-                                # print(f'batch status : {current_batch}')
-                                # if current_batch is None:
-                                #     return 'invalid'
-                                # else:
-
-                                # check if current deadline is under batch's deadline else update batch's deadline also
-                                # batch_deadline = current_batch[3]
-                                # deadline = int(deadline)
-                                #
-                                # #  it not call here coz if no team created ,but it update deadline
-                                # if deadline > batch_deadline:
-                                #     print('found deadline is greater than batch')
-                                #     updated_deadline = await db_management.dbops('update_deadline_of_batch',
-                                #                                                  [deadline, current_batch[1]])
-                                #     print(f'updated deadline {updated_deadline}')
-                                #     if not updated_deadline:
-                                #         print('not updated any issues?')
-                                #         updated_deadline = deadline
-                                # else:
-                                #     print('deadline is under')
-                                #     updated_deadline = deadline
 
                                 # adding team id
                                 team_id_attempts = 0
@@ -231,10 +209,6 @@ async def msg_process(msg_date, update: Update, context: ContextTypes.DEFAULT_TY
                                 #              }
                                 return_list = ['valid', dev_currently_joined, dev_not_joined, topic, tech, github_repo,
                                                deadline, deadline_as_formate_returned, team_name]
-                                dev_not_joined.clear()
-                                dev_already_joined.clear()
-                                dev_currently_joined.clear()
-                                print('all lists cleared')
                                 return return_list
                             else:
                                 continue
@@ -268,50 +242,54 @@ async def project_phase(msg_date, update: Update, context: ContextTypes.DEFAULT_
     msg_lower = msg.lower()
     # print(f' uid: {user_id}')
     status = await db_management.dbops('check_team_under_batch', [current_batch[0], user_id])
-    # print(f'status is : {status}')
+    print(f'status is : {status}')
     if status is None:
         print('no user found in db so not need to record')
         return False
     else:
-        additional_points = 0
+        user_doc = status[0]
+        team_id_ret = user_doc[2]
+        user_name_ret = user_doc[3]
+        # point_earned = user_doc[7]
         # checks is user's data already here in logs with current date
         is_user = await db_management.dbops('daily_activity_record_check_record', [user_id, sanitized_date])
         print(f'user :{is_user} ')
         if not is_user:
+            print('user is empty coz list is empty')
             match = re.search(r'update:\s*(.*)', msg_lower, re.DOTALL)
             # if user's 1st msg in that day is update: then this
             if match:
                 #
                 message = match.group(1).strip()
                 print(f'update msg: {message} and length {len(message)}')
-                is_user = await db_management.dbops('add_daily_update_in_logs',
-                                                    [sanitized_date, user_id, status[0][0], message,
-                                                     0])  # 0,0 is user_name last 0 means first entry
+                status_ret = await db_management.dbops('add_daily_update_in_logs',
+                                                       [sanitized_date, user_id, user_name_ret, message,
+                                                        0, team_id_ret])  # last 0 means first entry
                 return True
 
             else:
-                is_updated = await db_management.dbops('add_activity_msg_first_entry_today',
-                                                       [user_id, msg, sanitized_date, status[0][0],
-                                                        0])  # last 0 means first entry
+                is_updated =await  db_management.dbops('add_activity_msg_first_entry_today',
+                                                       [user_id, msg, sanitized_date, user_name_ret,
+                                                        0, team_id_ret])  # last 0 means first entry
 
                 if is_updated:
                     print('its not update msg its daily activity')
                     return True
         else:
             #  it's not first msg so already tuple added in daily_log table
-            print('last else worked')
+            print('the else worked means user doc found in daily_logs')
             match = re.search(r'update:\s*(.*)', msg_lower, re.DOTALL)
             if match:
                 message = match.group(1).strip()
                 is_updated = await db_management.dbops('add_daily_update_in_logs',
-                                                       [sanitized_date, user_id, status[0][0], message,
-                                                        1])  # 0,0 is user_name last 0 means first entry
+                                                       [sanitized_date, user_id, user_name_ret, message,
+                                                        1, team_id_ret])  # 0,0 is user_name last 0 means first entry
                 if is_updated:
                     print(f'it"s after first update msg: {message} and length {len(message)}')
                     return True
             else:
                 activity_status = await db_management.dbops('add_activity_msg_first_entry_today',
-                                                            [user_id, msg, sanitized_date, status[0][0],
-                                                             1])  # last 0 means first entry
+                                                            [user_id, msg, sanitized_date, user_name_ret,
+                                                             1, team_id_ret])  # last 0 means first entry
                 print('msg after first record it"s activity')
         return True

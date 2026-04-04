@@ -30,14 +30,14 @@ async def check_team_id_unique(args, cursor):
         return True
 
 
-def check_team_under_batch(args, cursor):
+async def check_team_under_batch(args, cursor):
     batch_id = int(args[0])
     user_id = str(args[1])
     # print(f'batch : {batch_id} and {user_id}')
 
     # select * from teams where batch_id = {batch_id} and devs_id = '{user_id}';
     query = f'''
-    select devs.tele_id,devs.streak from devs join teams on (teams.team_id = devs.team_id) where devs.batch_id = {batch_id} and devs.tele_id= '{user_id}';
+    select devs.tele_id,devs.streak,devs.team_id,devs.user_name from devs join teams on (teams.team_id = devs.team_id) where devs.batch_id = {batch_id} and devs.tele_id= '{user_id}';
     '''
     # checks is user found in this batch
     cursor.execute(query)
@@ -55,7 +55,6 @@ def check_any_batches_running(cursor):
     '''
     cursor.execute(query)
     result = cursor.fetchall()
-    print(f'from raw current batch result :{result}')
     if not result:
         return None
     else:
@@ -69,11 +68,12 @@ def check_msg(msg_date, cursor):
     if getstatus is None:
         print('no running batches')
         return ['no_batches_currently', '']
-    if getstatus[0] <= msg_date and msg_date <= getstatus[1]:
-        print('so its under the hood')
-        return ['during_planning_phase', getstatus]
+    # if getstatus[0] <= msg_date and msg_date <= getstatus[1]:
+    #     print('so its under the hood')
+    #     return ['during_planning_phase', getstatus]
 
-    elif getstatus[1] <= msg_date <= getstatus[5]:  # 5 is deadline as whole numbers
+    # elif getstatus[6] <= msg_date <= getstatus[5]:  # 5 is deadline as whole numbers
+    if getstatus[0] <= msg_date <= getstatus[5]:  # 5 is deadline as whole numbers
         print('its show tym')
         return ['during_project_phase', getstatus]
     elif msg_date > getstatus[5]:
@@ -170,7 +170,7 @@ def add_new_user_to_db(args: list, cursor):
     else:
         user_name = f'@{user_name}'
     query = f'''
-    insert into devs values ('{user_id}','{user_name}','{user_fullname}','{user_first_name}',0,0,0);
+    insert into devs values ('{user_id}','{user_name}','{user_fullname}','{user_first_name}',0,0,0,0);
     '''
     cursor.execute(query)
     query = f'''
@@ -217,18 +217,6 @@ async def check_is_user_already_present_and_update_if_yes(args, cursor):
             '''
             cursor.execute(query)
 
-            # for add updated user_id to teams table
-            query = f'''
-               update teams set devs_id='{user_id}' where devs_id = ('{included_username}');
-            '''
-            print(f'query of team search {query}')
-            cursor.execute(query)
-            # +----------+----------+---------+--------------+------------+---------+----------+-----+------------------+--------+------------------------+---------------------------------+
-            # | batch_id | team_id | devs_id      | isExtended | ExtDate | start    | end | deadline_as_date | streak | topic                  | repository                  | tech_stack   |
-            # +----------+---------+--------------+------------+---------+----------+-----+------------------+--------+------------------------+-----------------------------+--------------+
-            # | 20260329 | 90383   | @Jithuzz2255 | 0          | 0       | 20260401 | 21  | 20260421         | 0      | dbms management system | https://github.com/abhijith | @jithuzz2255 |
-            # +----------+---------+--------------+------------+---------+----------+-----+------------------+--------+------------------------+-----------------------------+--------------+
-
             query = f'''
                 select * from teams where team_id = '{result[5]}';
             '''
@@ -236,7 +224,6 @@ async def check_is_user_already_present_and_update_if_yes(args, cursor):
             # returning  wrong , combine two tables
             result_team = cursor.fetchone()
 
-            result_teams = cursor.fetchone()
             # print(f'resulted team {result_teams}')
             return ['updated_old', result_team, first_name,
                     result[5]]  # result means user's data , and take the team id from it
@@ -422,9 +409,11 @@ async def add_to_team(args, cursor):
         deadline_date = date_obj + timedelta(days=int(updated_deadline))
         deadline_full = deadline_date.strftime("%Y%m%d")  # 20260410
 
+        dev_count = len(devs_id)
+
         # added team
         query = f'''
-        insert into teams (batch_id,team_id,devs_id,isExtended,ExtDate,start,end,deadline_as_date,topic,repository,tech_stack,team_name) values ({batch_id},{team_id},'dev',0,0,{start},{updated_deadline},{deadline_full},'{topic}','{github_repo}','{tech_stack}','{team_name}');
+        insert into teams (batch_id,team_id,dev_count,isExtended,ExtDate,start,end,deadline_as_date,topic,repository,tech_stack,team_name) values ({batch_id},{team_id},{dev_count},0,0,{start},{updated_deadline},{deadline_full},'{topic}','{github_repo}','{tech_stack}','{team_name}');
         '''
         #  remove those fields from usr
         print(f'query while adding team {query}')
@@ -433,10 +422,10 @@ async def add_to_team(args, cursor):
         print(f'result after adding in team {res}')
         # for dev in devs_id:
 
-        return [True, updated_deadline, deadline_date, deadline_full, team_id]
+        return [True, updated_deadline, deadline_date.date(), deadline_full, team_id]
 
 
-def daily_activity_record_check_record(args, cursor):
+async def daily_activity_record_check_record(args, cursor):
     user_id = str(args[0])
     msg_date = args[1]
 
@@ -502,32 +491,45 @@ async def check_is_user_already_exist_in_user_db(args, cursor):
             return None
 
 
-def add_daily_update_in_logs(args, cursor):
+async def add_daily_update_in_logs(args, cursor):
     msg_date = args[0]
     # msg_date = 20260401
-    msg_content = args[3]
     # date_to_string = str(msg_date)
     # date_only = date_to_string[:10]
     # extracted = int(date_only.replace('-', ''))
     user_id = args[1]
     user_name = args[2]
+    msg_content = args[3]
     check_entry = args[4]
-
+    team_id = args[5]
+    print('daily update worked')
     # check already updated ?
     query = f'''
-           select isUpdated from daily_logs where tele_id = {user_id} and Date = {msg_date};
+           select isUpdated,PointEarned from daily_logs where tele_id = '{user_id}' and Date = {msg_date};
        '''
 
     cursor.execute(query)
     result = cursor.fetchone()
+    if not result:
+        point_earned = 0
+    else:
+        point_earned = result[1]
+
+    print(f'rexx: {result} and {point_earned}')
+
     if not result or not result[0] == 1:
         if check_entry == 0:  # means the today's first msg is update , 1 means after first entry
             query = f'''
-            insert into daily_logs (Date,tele_id,isUpdated,Activity,MsgLen,UserName,UpdateText) values ({msg_date},'{user_id}',1,0,0,'{user_name}','{msg_content}');
+            insert into daily_logs (Date,tele_id,isUpdated,Activity,MsgLen,UserName,UpdateText,team_id) values ({msg_date},'{user_id}',1,0,0,'{user_name}','{msg_content}',{team_id});
             '''
 
             cursor.execute(query)
             result = cursor.fetchone()
+
+            point = await update_daily_point(
+                [0, user_id, user_name, team_id, point_earned, msg_date],
+                cursor
+            )
         else:
             query = f'''
                 update daily_logs set isUpdated = 1,UpdateText= '{msg_content}' where  tele_id = {user_id} and Date = {msg_date};
@@ -540,7 +542,12 @@ def add_daily_update_in_logs(args, cursor):
 
             cursor.execute(query)
             result = cursor.fetchone()
-
+            # point = await dbops('update_daily_point',
+            #                     [0, user_id, user_name, team_id, point_earned, msg_date])
+            point = await update_daily_point(
+                [0, user_id, user_name, team_id, point_earned, msg_date],
+                cursor
+            )
         print('now check the streak coz: isUpdate in both cases we made as: 1 ')
 
         # Streak Logic =========================================================
@@ -608,7 +615,7 @@ def add_daily_update_in_logs(args, cursor):
                       '''
             cursor.execute(query)
             query = f'''
-                          select streak from teams where tele_id = '{user_id}';
+                          select streak from devs where tele_id = '{user_id}';
                                      '''
             cursor.execute(query)
             result = cursor.fetchone()
@@ -620,12 +627,13 @@ def add_daily_update_in_logs(args, cursor):
         return False
 
 
-def add_activity_msg_first_entry_today(args, cursor):
+async def add_activity_msg_first_entry_today(args, cursor):
     user_id = args[0]
     msg = args[1]
-    user_name = args[3]
-
     msg_date = args[2]
+    user_name = args[3]
+    team_id = args[5]
+
     print(f'msg date in activity method: {msg_date}')
     # msg_date = 20260401
     # msg_date = '2026-04-01'
@@ -634,25 +642,41 @@ def add_activity_msg_first_entry_today(args, cursor):
     extracted = int(date_only.replace('-', ''))
     msg_len = len(msg)
     check_entry = args[4]
+    # check already updated ?
+    query = f'''
+           select PointEarned from daily_logs where tele_id = '{user_id}' and Date = {msg_date};
+       '''
+
+    cursor.execute(query)
+    result = cursor.fetchall()
+    if not result:
+        point_earned = 0
+    else:
+        point_earned = result
+    print(f'qu: {query},result:{result} and {point_earned}')
+    # print(f'qu: {query},result:{result[0]}')
+
     if check_entry == 0:
         if msg_len > 20:
             print('msg above 20')
             query = f'''
-            insert into daily_logs (Date,tele_id,Activity,MsgLen,UserName) values ({extracted},'{user_id}',1,{msg_len},'{user_name}');
+            insert into daily_logs (Date,tele_id,Activity,MsgLen,UserName,team_id) values ({extracted},'{user_id}',1,{msg_len},'{user_name}',{team_id});
             '''
 
             cursor.execute(query)
-            cursor.fetchall()
+
+            # update point , 1 is activity updated
+            point = await update_daily_point(
+                [1, user_id, user_name, team_id, point_earned, extracted], cursor)
         else:
             print('msg len under 20')
             query = f'''
-                 insert into daily_logs (Date,tele_id,Activity,MsgLen,UserName) values ({extracted},'{user_id}',0,{msg_len},'{user_name}');
+                 insert into daily_logs (Date,tele_id,Activity,MsgLen,UserName,team_id) values ({extracted},'{user_id}',0,{msg_len},'{user_name}',{team_id});
                  '''
 
             cursor.execute(query)
-            cursor.fetchall()
         return True
-    else:
+    else:  # already activity written today ,so doc found
         # fetch already occuring MsgLength and sum up if sum > 20 then we will make Activity as 1 else only update msg length
         query = f'''
                   select Activity,MsgLen from daily_logs where tele_id = {user_id} and Date = {msg_date};
@@ -678,6 +702,10 @@ def add_activity_msg_first_entry_today(args, cursor):
                 cursor.execute(query)
                 result = cursor.fetchone()
                 if result[0] == 1:
+                    # update point
+                    point = await update_daily_point(
+                        [1, user_id, user_name, team_id, point_earned,
+                         msg_date], cursor)  # 1 means it's for update
                     return True
                 else:
                     return False
@@ -694,8 +722,151 @@ def add_activity_msg_first_entry_today(args, cursor):
             return True
 
 
-def streak_update(args, cursor):
-    print('strk')
+async def update_daily_point(args, cursor):
+    print('daily point section')
+    # [1, user_id, user_name, team_id, point_earned])
+    current_updated_var = args[0]
+    user_id = args[1]
+    user_name = args[2]
+    team_id = args[3]
+    msg_date = args[5]
+    point_earned = args[4]
+
+    print(f'point earned got in update daily:{point_earned}')
+    if isinstance(point_earned, tuple):
+        point_earned = point_earned[0]
+    elif isinstance(point_earned,list):
+        point_earned = int(point_earned[0][0])
+    point = 0
+
+    # get deadline from team
+    query = f'''
+      select end from teams where team_id = {team_id};
+      '''
+    cursor.execute(query)
+    deadline = cursor.fetchall()
+    deadline = deadline[0][0]
+
+    print(
+        f'user : {user_id},usrnma: {user_name},tm: {team_id},point: {point_earned},wherefrom:{current_updated_var} 0 =update, deadline_frm_tm={deadline} ')
+
+    if current_updated_var == 0:  # from update call
+        print('update:')
+        if deadline == 14:
+            # point add is 2
+            point = point_earned + 2
+        elif deadline == 17:
+            # point add is 2
+            point = point_earned + 2
+        elif deadline == 21:
+            # point add is 1
+            point = point_earned + 1
+        else:
+            print('false')
+    else:
+        print('activity:')
+        if deadline == 14:
+            # point add is 2
+            point = point_earned + 2
+        elif deadline == 17:
+            # point add is 1
+            point = point_earned + 1
+        elif deadline == 21:
+            # point add is 1
+            point = point_earned + 1
+        else:
+            print('false')
+
+    print(f'point earned {point_earned} and added pnt:{point}')
+    query = f'''
+    update daily_logs set PointEarned = {point} where  tele_id = {user_id} and Date = {msg_date};
+    '''
+    cursor.execute(query)
+    result = cursor.fetchall()
+    print(f'rss in update : {result}')
+    return
+
+
+async def extract_dev_details(args, cursor) -> list:
+    # devs = args
+    # if not devs:
+
+    batch_id = await dbops('get_current_batch', '')
+    b_id = batch_id[0]
+
+    query = f'''
+           select tele_id,user_name,user_fullname,user_firstname,batch_id,team_id,streak,isFinished from devs where batch_id = {b_id} is not 0 order by team_id asc;
+           '''
+    cursor.execute(query)
+    result = cursor.fetchall()
+    devs = result
+    return devs
+
+    print(f'devs are: {devs}')
+    all_devs = []
+    for dev in devs:
+        if not dev.startswith('@'):
+            query = f'''
+                   select tele_id,user_name,user_fullname,user_firstname,batch_id,team_id,streak,isFinished from devs where tele_id = '{dev}';
+                   '''
+            cursor.execute(query)
+            result = cursor.fetchone()
+            team_id_of_user = result[5]
+            if not team_id_of_user:
+                continue
+
+            print(f'one dev is :{result} and {result[0]}')
+            dev_detail = {
+                'tele_id': result[0],
+                'user_name': result[1],
+                'user_fullname': result[2],
+                'user_firstname': result[3],
+                'batch_id': result[4],
+                'streak': result[6],
+                'isFinished': result[7],
+            }
+            all_devs.append(dev_detail)
+        else:
+            query = f'''
+                   select tele_id,user_name,user_fullname,user_firstname,batch_id,team_id,streak,isFinished from devs where tele_id = '{dev}';
+                   '''
+            cursor.execute(query)
+            result = cursor.fetchone()
+
+            team_id_of_user = result[5]
+            if not team_id_of_user:
+                continue
+
+            print(f'one dev is :{result} and {result[0]}')
+            dev_detail = {
+                'tele_id': result[0],
+                'user_name': result[1],
+                'user_fullname': result[2],
+                'user_firstname': result[3],
+                'team_id': result[4],
+                'streak': result[6],
+                'isFinished': result[7],
+            }
+            all_devs.append(dev_detail)
+
+    print(f'from list: {all_devs}')
+    return all_devs
+
+
+async def fetch_daily_log(args, cursor):
+    date: int = args[0]
+
+    query = f'''
+    select daily_logs.Activity,daily_logs.isUpdated,daily_logs.tele_id,daily_logs.UserName,teams.team_name,teams.deadline_as_date,teams.end,teams.team_id teams from daily_logs join teams on (teams.team_id= daily_logs.team_id) where daily_logs.Date = {date};
+    '''
+    # checks is user found in this batch
+    cursor.execute(query)
+    result = cursor.fetchall()
+    print(f'from raw daily_logs is :{result} and query: {query}')
+    if result is None:
+        return None
+    else:
+        return result
 
 
 async def dbops(operation, args):
@@ -731,15 +902,19 @@ async def dbops(operation, args):
 
         #  using some fun below for during project phase executions
         if operation == 'check_team_under_batch':
-            return check_team_under_batch(args, cursor)
+            return await check_team_under_batch(args, cursor)
         if operation == 'daily_activity_record_check_record':
-            return daily_activity_record_check_record(args, cursor)
+            return await daily_activity_record_check_record(args, cursor)
         if operation == 'add_daily_update_in_logs':
-            return add_daily_update_in_logs(args, cursor)
+            return await add_daily_update_in_logs(args, cursor)
         if operation == 'add_activity_msg_first_entry_today':
-            return add_activity_msg_first_entry_today(args, cursor)
-        if operation == 'streak_update':
-            return streak_update(args, cursor)
+            return await add_activity_msg_first_entry_today(args, cursor)
+        if operation == 'extract_dev_details':
+            return await extract_dev_details(args, cursor)
+        if operation == 'fetch_daily_log':
+            return await fetch_daily_log(args, cursor)
+        if operation == 'update_daily_point':
+            return await update_daily_point(args, cursor)
 
     except sqlite3.Error as error:
         print(f'error is : {error}')

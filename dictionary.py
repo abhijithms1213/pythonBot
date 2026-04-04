@@ -99,7 +99,7 @@ async def check_msg(msg_date, update, context):
                 bot_link = f"https://t.me/{context.bot.username}?start=join"
                 new_join = is_success_status[1]
                 no_id_users: list = is_success_status[2]
-                all_users: list = new_join + no_id_users
+                all_users: list = list(set(new_join + no_id_users))
 
                 topic = is_success_status[3]
                 tech = is_success_status[4]
@@ -120,9 +120,11 @@ async def check_msg(msg_date, update, context):
                     "Silent assassin mode activated 🥷",
                 ]
 
+                print(f'all users are {all_users}and {no_id_users}')
                 if len(all_users) == 1:
                     # 🧍 Solo — address the user directly as "you"
                     if no_id_users:
+                        print('solo no id warning')
                         warning_text = f"""
                 ━━━━━━━━━━━━━━━━━━━
 
@@ -137,11 +139,12 @@ async def check_msg(msg_date, update, context):
                 ⚡ Do it now… or I'll pretend you don't exist 😶
                 """
                     else:
+                        print('solo else warning')
                         warning_text = ""  # no missing IDs, no warning needed
 
                 else:
                     # 👥 Team — list missing members
-                    if len(no_id_users) > 1:
+                    if len(no_id_users) >= 1:
                         warning_text = f"""
                 ━━━━━━━━━━━━━━━━━━━
 
@@ -158,6 +161,7 @@ async def check_msg(msg_date, update, context):
                 ⚡ Do it now… or I'll pretend they don't exist 😶
                 """
                     else:
+                        print('team else warning')
                         warning_text = ""
 
                 # ─── Now build the main message ───────────────────────────────────────────
@@ -173,8 +177,7 @@ async def check_msg(msg_date, update, context):
                 🧠 <b>What you're building:</b> {topic}
                 ⚙️ <b>Using:</b> {tech}
 
-                📂 <b>Your Repo:</b>
-                {github_repo}
+              📂 <b>Your Repo:</b> <a href="{github_repo}">Open Repo 🔗</a>
 
                 ⏳ <b>Deadline:</b> {deadline} days
                 📅 <b>Finish by:</b> {deadline_as_date}
@@ -208,7 +211,8 @@ async def check_msg(msg_date, update, context):
 
                 await update.effective_message.reply_text(
                     full_msg,
-                    parse_mode="HTML"
+                    parse_mode="HTML",
+                    disable_web_page_preview=True
                 )
                 return
 
@@ -331,7 +335,7 @@ async def join_grp(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         status = await db_management.dbops('add_new_user_to_db', [user_id, user_name, user_fullname, user_first_name])
         if status:
             await context.bot.send_message(chat_id=update.message.chat_id,
-                                          text='hooray u joined in our group , go and start your dev journey')
+                                           text='hooray u joined in our group , go and start your dev journey')
     elif status_msg == 'exist':
         print('found user so not need to add anymore send a already added warning')
         await context.bot.send_message(chat_id=update.message.chat_id, text=f'already u joined , explore our group')
