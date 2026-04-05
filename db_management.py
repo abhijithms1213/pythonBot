@@ -37,7 +37,7 @@ async def check_team_under_batch(args, cursor):
 
     # select * from teams where batch_id = {batch_id} and devs_id = '{user_id}';
     query = f'''
-    select devs.tele_id,devs.streak,devs.team_id,devs.user_name from devs join teams on (teams.team_id = devs.team_id) where devs.batch_id = {batch_id} and devs.tele_id= '{user_id}';
+    select devs.tele_id,devs.streak,devs.team_id,devs.user_name,devs.isFinished from devs join teams on (teams.team_id = devs.team_id) where devs.batch_id = {batch_id} and devs.tele_id= '{user_id}';
     '''
     # checks is user found in this batch
     cursor.execute(query)
@@ -46,7 +46,7 @@ async def check_team_under_batch(args, cursor):
     if result is None or not result:
         return None
     else:
-        return result
+        return result,result[0][4]
 
 
 def check_any_batches_running(cursor):
@@ -282,7 +282,7 @@ async def add_dev_to_db(args, cursor):
                 # but it's won't check because, if user already joined then in team check already return as invalid, so not even execute this fun()
                 print('inside @ and equal names found @abc_24')
                 print('found already in batch , also didnt updated details using /join after warnings')
-                # here user didn't updated after warnings
+                # here user didn't updated after warning
                 return [3, user_id]
 
                 # return [3, result[1]]
@@ -472,23 +472,43 @@ def update_deadline_of_batch(args, cursor):
 
 async def check_is_user_already_exist_in_user_db(args, cursor):
     user_id = args
-    query = f'''
-    select * from devs where user_name = '{user_id}';
-    '''
+    if isinstance(user_id, str) and user_id.startswith('@'):
+        query = f'''
+        select * from devs where user_name = '{user_id}';
+        '''
 
-    cursor.execute(query)
-    result = cursor.fetchall()
-    print(f'user found {result} and query {query}  ')
-    if not result:
-        print('empty result not worked')
-        return None
-    # also check if start with @ if not then return that because maybe this field have @jithu_batch_no
-    else:
-        user_id_from_db: str = result[0]
-        if user_id_from_db[0].isdigit():
-            return result[0][0]
-        else:
+        cursor.execute(query)
+        result = cursor.fetchall()
+        print(f'user found {result} and query {query}  ')
+        if not result:
+            print('empty result not worked')
             return None
+        # also check if start with @ if not then return that because maybe this field have @jithu_batch_no
+        else:
+            user_id_from_db: str = result[0]
+            if user_id_from_db[0].isdigit():
+                return result[0][0]
+            else:
+                return None
+    else:
+        query = f'''
+        select tele_id,isFinished,team_id,streak,total_points from devs where tele_id = '{user_id}';
+        '''
+
+        cursor.execute(query)
+        result = cursor.fetchall()
+        print(f'user found {result} and query {query}  ')
+        if not result:
+            print('empty result not worked')
+            return None
+        # also check if start with @ if not then return that because maybe this field have @jithu_batch_no
+        else:
+            user_id_from_db: str = result[0]
+
+            if user_id_from_db[0].isdigit():
+                return user_id_from_db[0], result[0][1], result[0][2], result[0][3], result[0][4]
+            else:
+                return None
 
 
 async def add_daily_update_in_logs(args, cursor):
@@ -735,7 +755,7 @@ async def update_daily_point(args, cursor):
     print(f'point earned got in update daily:{point_earned}')
     if isinstance(point_earned, tuple):
         point_earned = point_earned[0]
-    elif isinstance(point_earned,list):
+    elif isinstance(point_earned, list):
         point_earned = int(point_earned[0][0])
     point = 0
 
@@ -857,7 +877,7 @@ async def fetch_daily_log(args, cursor):
     date: int = args[0]
 
     query = f'''
-    select daily_logs.Activity,daily_logs.isUpdated,daily_logs.tele_id,daily_logs.UserName,teams.team_name,teams.deadline_as_date,teams.end,teams.team_id teams from daily_logs join teams on (teams.team_id= daily_logs.team_id) where daily_logs.Date = {date};
+    select daily_logs.Activity,daily_logs.isUpdated,daily_logs.tele_id,daily_logs.UserName,teams.team_name,teams.deadline_as_date,teams.end,teams.team_id,daily_logs.PointEarned teams from daily_logs join teams on (teams.team_id= daily_logs.team_id) where daily_logs.Date = {date} order by daily_logs.team_id asc;
     '''
     # checks is user found in this batch
     cursor.execute(query)
@@ -867,6 +887,91 @@ async def fetch_daily_log(args, cursor):
         return None
     else:
         return result
+
+
+async def updating_user_project_finish_and_clean_up(args, cursor):
+    user_id = args[0]
+    team_id = args[1]
+    streak = args[2]
+    total_points = args[3]
+
+    # batch_id, team_id, dev_count, isExtended, ExtDate, start, end, deadline_as_date, isFinished, topic, repository, tech_stack, team_name = cursor.execute(
+    #     "SELECT * FROM teams WHERE team_id=?", (team_id,)).fetchone()
+    # or
+    team = cursor.execute(
+        "SELECT * FROM teams WHERE team_id=?",
+        (team_id,)
+    ).fetchone()
+
+    (batch_id, team_id, dev_count, isExtended, ExtDate, start, end,
+     deadline_as_date, isFinished, topic, repository,
+     tech_stack, team_name) = team
+
+    cursor.execute("""
+    INSERT INTO project_history (
+        tele_id,
+        batch_id,
+        team_id,
+        streak,
+        isFinished,
+        start,
+        end,
+        deadline_as_date,
+        topic,
+        repository,
+        tech_stack,
+        team_name,
+        total_points
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        user_id,
+        batch_id,
+        team_id,
+        streak,
+        1,
+        start,
+        end,
+        deadline_as_date,
+        topic,
+        repository,
+        tech_stack,
+        team_name,
+        total_points
+    ))
+    # result = cursor.fetchall()
+    # print(f'history: {result}')
+
+    # update user's team id and batch as empty and also updates Finished as 1
+    cursor.execute("""
+    UPDATE devs SET batch_id = NULL, team_id = NULL,isFinished = 1 WHERE tele_id = ?
+    """, (user_id,))
+
+    # team update if every devs isFinished True, else if any dev is False then continue
+    cursor.execute(f"""
+    select devs.tele_id,devs.isFinished,teams.team_id from devs join teams on (teams.team_id =devs.team_id) where devs.team_id =?
+    """, (team_id,))
+    result = cursor.fetchall()
+    is_break = False
+    for dev in result:
+        # if dev[1]==1:
+        #
+        if not dev[1]:
+            is_break = True
+            break
+        else:
+            continue
+
+    if not is_break:  # means every devs have isFinished True
+        print('found all users are finished so update team id in teams')
+        cursor.execute("""
+           UPDATE teams SET isFinished = 1 WHERE team_id = ?
+           """, (team_id,))
+        print(f'updated finished in team, {cursor.fetchall()}')
+
+        return True
+    else:
+        print('some devs still not finished so not team updating')
+        return False
 
 
 async def dbops(operation, args):
@@ -915,6 +1020,10 @@ async def dbops(operation, args):
             return await fetch_daily_log(args, cursor)
         if operation == 'update_daily_point':
             return await update_daily_point(args, cursor)
+
+        # finishing or clean up process
+        if operation == 'updating_user_project_finish_and_clean_up':
+            return await updating_user_project_finish_and_clean_up(args, cursor)
 
     except sqlite3.Error as error:
         print(f'error is : {error}')

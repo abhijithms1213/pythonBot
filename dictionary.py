@@ -10,6 +10,8 @@ import os
 load_dotenv()
 tele_user_me = int(os.getenv("TELEGRAM_USER_ME"))
 
+zero_dev_grp_id = -5287913183
+
 batches = 'batches'
 # batches
 # +-----------------------------------------------------+
@@ -249,7 +251,6 @@ async def check_msg(msg_date, update, context):
 async def grp_msg(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     print(
         f'args:{update.message.text} user: name: {update.message.from_user.username} id:{update.message.from_user.id}')
-    zero_dev_grp_id = -5287913183
     current_id = update.message.chat.id
     if zero_dev_grp_id == current_id:
         #  check mention working or not
@@ -371,6 +372,57 @@ async def join_grp(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         )
 
 
+# async def common_str(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+#     date = str(update.message.date)
+#     date = date[:10]
+#     sanitized_date = int(f'{date}'.replace('-', ''))
+#     print(f'date : {date} sani : {sanitized_date}')
+#     status = await db_management.dbops('check_is_msg_under_planning_phase', sanitized_date)
+#
+#     if status[0] == 'no_batches_currently':
+#         print('no batch')
+#     elif status[0] == 'during_planning_phase':
+#         print('planning')
+#     elif status[0] == 'during_project_phase':
+#         print('project')
+#     elif status[0] == 'after_deadline':
+#         print('after'
+
+async def finished_project(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    date = str(update.message.date)
+    date = date[:10]
+    sanitized_date = int(f'{date}'.replace('-', ''))
+    print(f'date : {date} sani : {sanitized_date}')
+    status = await db_management.dbops('check_is_msg_under_planning_phase', sanitized_date)
+
+    if status[0] == 'no_batches_currently':
+        print('no batch')
+    elif status[0] == 'during_planning_phase':
+        print('planning')
+    elif status[0] == 'during_project_phase':
+        print('project')
+        user, is_finished, team_id, streak, total_points = await db_management.dbops(
+            'check_is_user_already_exist_in_user_db',
+            update.message.from_user.id)
+        if user:
+            print(f'found user {user} fini_status: {is_finished} team:{team_id}')
+            if not is_finished:
+                print('not finished i found')
+                status = await db_management.dbops('updating_user_project_finish_and_clean_up',
+                                                   [update.message.from_user.id, team_id, streak, total_points])
+                if status:
+                    print("updated your status and also team isFinished true")
+                else:
+                    print('not updated teams isFinish but user update done')
+            else:
+                print('already u finished before')
+        else:
+            print('not found in db about user')
+
+    elif status[0] == 'after_deadline':
+        print('after')
+
+
 async def help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     print('hai')
 
@@ -390,6 +442,7 @@ def pybot():
     application.add_handler(CommandHandler("help", help))
     application.add_handler(CommandHandler("join", join_grp))
     application.add_handler(CommandHandler("grp", create_batch_group))
+    application.add_handler(CommandHandler("finished_project", finished_project))
     grp_msg_handler = MessageHandler(filters.TEXT & (~filters.COMMAND), grp_msg)
     application.add_handler(grp_msg_handler)
     application.run_polling(allowed_updates=Update.ALL_TYPES)
