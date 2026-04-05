@@ -47,6 +47,32 @@ def clean_up_everything():
     print('clean up')
 
 
+async def lets_clean_all():
+    print('deadline+1 st day is clean up day')
+    getstatus = await  db_management.dbops('get_current_batch', '')
+    print(f'batch: {type(getstatus[1])} {type(getstatus[5])}\n')
+    print(f'{getstatus}')
+    today = datetime.now().date()
+    today_as_int = int(today.strftime("%Y%m%d"))
+
+    # for get clean up day
+    deadline = getstatus[5]
+    deadline_as_str = str(deadline)
+    deadline_as_date = datetime.strptime(deadline_as_str, "%Y%m%d")
+    clean_up_day = deadline_as_date + timedelta(days=1)
+    clean_up_day_as_int = int(clean_up_day.strftime("%Y%m%d"))
+
+    if today == clean_up_day:  # from it
+        print('its time to clean')
+
+        finished, not_finished_not_extended, not_finished_extended = await  db_management.dbops('clean_up_batch_end',
+                                                                                                '')
+        return ['clean_finished', getstatus]
+    else:
+        print('msg not under any')
+        return [None, '']
+
+
 def attention_msgs():
     print('attention')
 
@@ -55,13 +81,13 @@ def weekly_report():
     print('weekly')
 
 
-async def daily_update():
+async def daily_update(context: ContextTypes.DEFAULT_TYPE):
     getstatus = await  db_management.dbops('get_current_batch', '')
     print(f'batch: {type(getstatus[1])} {type(getstatus[0])}')
     print(f'{getstatus}')
     today = datetime.now().date()
     yesterday = today - timedelta(days=1)
-    # yesterday = today
+    yesterday = today
     print(f'yest : {yesterday}')
     today_as_int = int(today.strftime("%Y%m%d"))
     yesterday_as_int = int(yesterday.strftime("%Y%m%d"))
@@ -83,25 +109,61 @@ async def daily_update():
             print('no one updated yesterday')
             return ['during_planning_phase', daily_logs]
         else:
+            from collections import defaultdict
+
+            grouped = defaultdict(lambda: defaultdict(list))
+
             for log in daily_logs:
-                update_status = log[1]
                 activity_status = log[0]
+                update_status = log[1]
                 tele_id = log[2]
                 tele_username = log[3]
                 team_name = log[4]
-                team_deadline_as_date = log[5]
                 team_deadline = log[6]
-                team_id = log[7]
-                print(f"""
-                Activity        : {activity_status}
-                Update Status   : {update_status}
-                Telegram ID     : {tele_id}
-                Username        : {tele_username}
-                Team Name       : {team_name}
-                Deadline Date   : {team_deadline_as_date}
-                Deadline        : {team_deadline}
-                Team ID         : {team_id}
-                """)
+                point = log[8]
+
+                grouped[team_deadline][team_name].append({
+                    "user": tele_username,
+                    "activity": activity_status,
+                    "update": update_status,
+                    "point": point
+                })
+                message = "📊 <b>Daily Report</b>\n\n"
+
+                for deadline in sorted(grouped.keys()):
+                    message += f"⏰ <b>Deadline: {deadline}</b>\n"
+
+                    for team in grouped[deadline]:
+                        message += f"\n📌 <b>Team: {team}</b>\n"
+
+                        for user in grouped[deadline][team]:
+                            status = "✅" if user["update"] == 1 else "❌"
+
+                            message += (
+                                f"  👤 {user['user']} | "
+                                f"Update: {status} | "
+                                f"Pts: {user['point']}\n"
+                            )
+
+                    message += "\n"
+
+                zero_dev_grp_id = -5287913183
+                await context.bot.send_message(
+                    chat_id=zero_dev_grp_id,
+                    text=message,
+                    parse_mode="HTML"
+                )
+                # print(f"""
+                # Activity        : {activity_status}
+                # Update Status   : {update_status}
+                # Telegram ID     : {tele_id}
+                # Username        : {tele_username}
+                # Team Name       : {team_name}
+                # Deadline Date   : {team_deadline_as_date}
+                # Deadline        : {team_deadline}
+                # Team ID         : {team_id}
+                # point earned    : {point}
+                # """)
 
             return ['during_planning_phase', daily_logs]
     elif yesterday_as_int > getstatus[5]:

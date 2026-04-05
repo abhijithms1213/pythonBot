@@ -46,7 +46,7 @@ async def check_team_under_batch(args, cursor):
     if result is None or not result:
         return None
     else:
-        return result,result[0][4]
+        return result, result[0][4]
 
 
 def check_any_batches_running(cursor):
@@ -974,6 +974,96 @@ async def updating_user_project_finish_and_clean_up(args, cursor):
         return False
 
 
+async def clean_up_batch_end(args, cursor):
+    print('clean up in db')
+
+    cursor.execute(
+        """
+        INSERT INTO project_history (
+            tele_id,
+            batch_id,
+            team_id,
+            streak,
+            isFinished,
+            start,
+            end,
+            deadline_as_date,
+            topic,
+            repository,
+            tech_stack,
+            team_name,
+            total_points
+        )
+        SELECT 
+            devs.tele_id,
+            devs.batch_id,
+            devs.team_id,
+            devs.streak,
+            devs.isFinished,
+            teams.start,
+            teams.end,
+            teams.deadline_as_date,
+            teams.topic,
+            teams.repository,
+            teams.tech_stack,
+            teams.team_name,
+            devs.total_points
+        FROM teams
+        JOIN devs ON teams.team_id = devs.team_id
+        WHERE devs.isFinished = 0
+        """
+    )
+
+    # 1. Finished users
+    finished = cursor.execute(
+        """
+        SELECT tele_id, user_fullname, user_firstname, user_name
+        FROM devs
+        WHERE isFinished = 1
+        """
+    ).fetchall()
+
+    # 2. Not finished + not extended
+    not_finished_not_extended = cursor.execute(
+        """
+        SELECT d.tele_id, d.user_fullname, d.user_firstname, d.user_name
+        FROM devs d
+        JOIN teams t ON d.team_id = t.team_id
+        WHERE d.isFinished = 0 AND t.isExtended = 0
+        """
+    ).fetchall()
+
+    # 3. Not finished + extended
+    not_finished_extended = cursor.execute(
+        """
+        SELECT d.tele_id, d.user_fullname, d.user_firstname, d.user_name
+        FROM devs d
+        JOIN teams t ON d.team_id = t.team_id
+        WHERE d.isFinished = 0 AND t.isExtended = 1
+        """
+    ).fetchall()
+
+    # 5: Delete non-extended teams
+    cursor.execute("""
+        UPDATE devs
+        SET batch_id = NULL,
+            team_id = NULL
+        WHERE team_id IN (
+            SELECT team_id
+            FROM teams
+            WHERE isExtended = 0
+            )
+    """)
+
+    # 5: Delete non-extended teams
+    cursor.execute("""
+        DELETE FROM teams
+        WHERE isExtended != 1
+    """)
+
+    return finished, not_finished_not_extended, not_finished_extended
+
+
 async def dbops(operation, args):
     try:
         connect = sqlite3.connect('zerodev.db')
@@ -1024,6 +1114,8 @@ async def dbops(operation, args):
         # finishing or clean up process
         if operation == 'updating_user_project_finish_and_clean_up':
             return await updating_user_project_finish_and_clean_up(args, cursor)
+        if operation == 'clean_up_batch_end':
+            return await clean_up_batch_end(args, cursor)
 
     except sqlite3.Error as error:
         print(f'error is : {error}')
