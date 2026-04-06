@@ -37,7 +37,7 @@ async def check_team_under_batch(args, cursor):
 
     # select * from teams where batch_id = {batch_id} and devs_id = '{user_id}';
     query = f'''
-    select devs.tele_id,devs.streak,devs.team_id,devs.user_name,devs.isFinished from devs join teams on (teams.team_id = devs.team_id) where devs.batch_id = {batch_id} and devs.tele_id= '{user_id}';
+    select devs.tele_id,devs.streak,devs.team_id,devs.user_name,devs.isFinished,teams.deadline_as_date,teams.isExtended,teams.ExtDate from devs join teams on (teams.team_id = devs.team_id) where devs.batch_id = {batch_id} and devs.tele_id= '{user_id}';
     '''
     # checks is user found in this batch
     cursor.execute(query)
@@ -46,7 +46,7 @@ async def check_team_under_batch(args, cursor):
     if result is None or not result:
         return None
     else:
-        return result, result[0][4]
+        return result, result[0][4],result[0][5],result[0][6],result[0][7]
 
 
 def check_any_batches_running(cursor):
@@ -807,72 +807,6 @@ async def update_daily_point(args, cursor):
     return
 
 
-async def extract_dev_details(args, cursor) -> list:
-    # devs = args
-    # if not devs:
-
-    batch_id = await dbops('get_current_batch', '')
-    b_id = batch_id[0]
-
-    query = f'''
-           select tele_id,user_name,user_fullname,user_firstname,batch_id,team_id,streak,isFinished from devs where batch_id = {b_id} is not 0 order by team_id asc;
-           '''
-    cursor.execute(query)
-    result = cursor.fetchall()
-    devs = result
-    return devs
-
-    print(f'devs are: {devs}')
-    all_devs = []
-    for dev in devs:
-        if not dev.startswith('@'):
-            query = f'''
-                   select tele_id,user_name,user_fullname,user_firstname,batch_id,team_id,streak,isFinished from devs where tele_id = '{dev}';
-                   '''
-            cursor.execute(query)
-            result = cursor.fetchone()
-            team_id_of_user = result[5]
-            if not team_id_of_user:
-                continue
-
-            print(f'one dev is :{result} and {result[0]}')
-            dev_detail = {
-                'tele_id': result[0],
-                'user_name': result[1],
-                'user_fullname': result[2],
-                'user_firstname': result[3],
-                'batch_id': result[4],
-                'streak': result[6],
-                'isFinished': result[7],
-            }
-            all_devs.append(dev_detail)
-        else:
-            query = f'''
-                   select tele_id,user_name,user_fullname,user_firstname,batch_id,team_id,streak,isFinished from devs where tele_id = '{dev}';
-                   '''
-            cursor.execute(query)
-            result = cursor.fetchone()
-
-            team_id_of_user = result[5]
-            if not team_id_of_user:
-                continue
-
-            print(f'one dev is :{result} and {result[0]}')
-            dev_detail = {
-                'tele_id': result[0],
-                'user_name': result[1],
-                'user_fullname': result[2],
-                'user_firstname': result[3],
-                'team_id': result[4],
-                'streak': result[6],
-                'isFinished': result[7],
-            }
-            all_devs.append(dev_detail)
-
-    print(f'from list: {all_devs}')
-    return all_devs
-
-
 async def fetch_daily_log(args, cursor):
     date: int = args[0]
 
@@ -1015,33 +949,37 @@ async def clean_up_batch_end(args, cursor):
     )
 
     # 1. Finished users
-    finished = cursor.execute(
-        """
-        SELECT tele_id, user_fullname, user_firstname, user_name
-        FROM devs
-        WHERE isFinished = 1
-        """
-    ).fetchall()
+    finished = cursor.execute("""
+        SELECT 
+            d.tele_id, d.user_fullname, d.user_firstname, d.user_name,
+            d.streak, d.total_points,
+            t.team_name
+        FROM devs d
+        LEFT JOIN teams t ON d.team_id = t.team_id
+        WHERE d.isFinished = 1
+    """).fetchall()
 
     # 2. Not finished + not extended
-    not_finished_not_extended = cursor.execute(
-        """
-        SELECT d.tele_id, d.user_fullname, d.user_firstname, d.user_name
+    not_finished_not_extended = cursor.execute("""
+        SELECT 
+            d.tele_id, d.user_fullname, d.user_firstname, d.user_name,
+            d.streak, d.total_points,
+            t.team_name
         FROM devs d
         JOIN teams t ON d.team_id = t.team_id
         WHERE d.isFinished = 0 AND t.isExtended = 0
-        """
-    ).fetchall()
+    """).fetchall()
 
     # 3. Not finished + extended
-    not_finished_extended = cursor.execute(
-        """
-        SELECT d.tele_id, d.user_fullname, d.user_firstname, d.user_name
+    not_finished_extended = cursor.execute("""
+        SELECT 
+            d.tele_id, d.user_fullname, d.user_firstname, d.user_name,
+            d.streak, d.total_points,
+            t.team_name
         FROM devs d
         JOIN teams t ON d.team_id = t.team_id
         WHERE d.isFinished = 0 AND t.isExtended = 1
-        """
-    ).fetchall()
+    """).fetchall()
 
     # 5: Delete non-extended teams
     cursor.execute("""
@@ -1062,6 +1000,14 @@ async def clean_up_batch_end(args, cursor):
     """)
 
     return finished, not_finished_not_extended, not_finished_extended
+
+
+async def get_log_combined_for_week_update(args, cursor):
+    print('')
+    # cursor.execute(f"""
+    # select teams.tele_id,devs.isFinished,teams.team_id from devs join teams on (teams.team_id =devs.team_id) where devs.team_id =?
+    # """, ('',))
+    # result = cursor.fetchall()
 
 
 async def dbops(operation, args):
@@ -1104,8 +1050,6 @@ async def dbops(operation, args):
             return await add_daily_update_in_logs(args, cursor)
         if operation == 'add_activity_msg_first_entry_today':
             return await add_activity_msg_first_entry_today(args, cursor)
-        if operation == 'extract_dev_details':
-            return await extract_dev_details(args, cursor)
         if operation == 'fetch_daily_log':
             return await fetch_daily_log(args, cursor)
         if operation == 'update_daily_point':
@@ -1116,6 +1060,8 @@ async def dbops(operation, args):
             return await updating_user_project_finish_and_clean_up(args, cursor)
         if operation == 'clean_up_batch_end':
             return await clean_up_batch_end(args, cursor)
+        if operation == 'get_log_combined_for_week_update':
+            return await get_log_combined_for_week_update(args, cursor)
 
     except sqlite3.Error as error:
         print(f'error is : {error}')

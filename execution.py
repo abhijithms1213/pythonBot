@@ -35,8 +35,6 @@ async def mention_check(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     mentions.append(mention_text)
 
     # mentions.append(update.message.from_user.id)
-    await db_management.dbops('extract_dev_details',
-                              mentions)
     return mentions
 
 
@@ -241,7 +239,11 @@ async def project_phase(msg_date, update: Update, context: ContextTypes.DEFAULT_
     msg = update.message.text
     msg_lower = msg.lower()
     # print(f' uid: {user_id}')
-    status, isFinishedFromUser = await db_management.dbops('check_team_under_batch', [current_batch[0], user_id])
+    today = datetime.today().date()
+    today_as_int = int(today.strftime("%Y%m%d"))
+    status, isFinishedFromUser, deadline_as_date, is_extended, ext_date = await db_management.dbops(
+        'check_team_under_batch',
+        [current_batch[0], user_id])
     print(f'status is : {status}')
     if status is None:
         print('no user found in db so not need to record')
@@ -251,7 +253,16 @@ async def project_phase(msg_date, update: Update, context: ContextTypes.DEFAULT_
         team_id_ret = user_doc[2]
         user_name_ret = user_doc[3]
         print(f'is finished :{isFinishedFromUser}')
-        if not isFinishedFromUser == 1:
+        is_all_ok = False
+        if sanitized_date <= deadline_as_date:
+            if isFinishedFromUser == 1:
+                return 'already finished'
+        else:
+            if is_extended == 1 and sanitized_date <= ext_date:
+                is_all_ok = True
+            else:
+                return 'date after extension'
+        if not isFinishedFromUser == 1 or is_all_ok:
             # checks is user's data already here in logs with current date
             is_user = await db_management.dbops('daily_activity_record_check_record', [user_id, sanitized_date])
             print(f'user :{is_user} ')

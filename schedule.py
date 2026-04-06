@@ -43,11 +43,22 @@ from datetime import datetime, timedelta
 #         print('msg not under any')
 #         return [None, '']
 
-def clean_up_everything():
-    print('clean up')
+def format_users(users):
+    formatted = []
+    for i, (tele_id, fullname, firstname, username, streak, points, team_name) in enumerate(users, start=1):
+        name = fullname or firstname or username or "Unknown"
+        mention = f'<a href="tg://user?id={tele_id}">{name}</a>'
+
+        formatted.append(
+            f"{i}. {mention}\n"
+            f"   🧠 Streak: {streak} | ⭐ Points: {points}\n"
+            f"   👥 Team: {team_name or 'No Team'}"
+        )
+
+    return "\n\n".join(formatted) if formatted else "None"
 
 
-async def lets_clean_all():
+async def lets_clean_all(context: ContextTypes.DEFAULT_TYPE, update: Update):
     print('deadline+1 st day is clean up day')
     getstatus = await  db_management.dbops('get_current_batch', '')
     print(f'batch: {type(getstatus[1])} {type(getstatus[5])}\n')
@@ -67,6 +78,27 @@ async def lets_clean_all():
 
         finished, not_finished_not_extended, not_finished_extended = await  db_management.dbops('clean_up_batch_end',
                                                                                                 '')
+        message = f"""
+        ━━━━━━━━━━━━━━━━━━━━━━
+
+        🏁 <b>Batch Report</b>
+
+        🏆 <b>Finished Users</b>
+        {format_users(finished)}
+
+        ⚠️ <b>Not Finished (Deadline Over)</b>
+        {format_users(not_finished_not_extended)}
+
+        ⏳ <b>Extended Users</b>
+        {format_users(not_finished_extended)}
+
+        ━━━━━━━━━━━━━━━━━━━━━━
+        """
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=message,
+            parse_mode="HTML"
+        )
         return ['clean_finished', getstatus]
     else:
         print('msg not under any')
@@ -77,8 +109,75 @@ def attention_msgs():
     print('attention')
 
 
-def weekly_report():
+async def weekly_report():
     print('weekly')
+    getstatus = await  db_management.dbops('get_current_batch', '')
+    print(f'batch: {type(getstatus[1])} {type(getstatus[0])}')
+    print(f'{getstatus}')
+    # today
+    today = datetime.now().date()
+    today = datetime.now().date() + timedelta(days=3)
+
+    yesterday = today + timedelta(days=19)
+    today_as_int = int(today.strftime("%Y%m%d"))
+    start = getstatus[6]  # start date
+    deadline = getstatus[3]  # start date
+
+    start_as_str = str(start)  # e.g. 20260327
+    start_as_formate = datetime.strptime(start_as_str, "%Y%m%d")
+
+    first_week = start_as_formate + timedelta(7)
+    first_week = first_week.date()
+
+    second_week = start_as_formate + timedelta(14)
+    second_week = second_week.date()
+
+    devs = await  db_management.dbops('get_log_combined_for_week_update', [])
+
+    if getstatus is None:
+        print('no running batches')
+        return ['no_batches_currently', '']
+    elif getstatus[6] <= today_as_int <= getstatus[5]:  # 5 is deadline as whole numbers, 6 is project starts
+        print(
+            f'today {today} and day {today.strftime("%A")}, first week {first_week} ,and start: {start_as_formate},deadline {deadline}')
+        if deadline == 14:
+            if today == first_week:  # if starts 03-01 , then today == 03-07 is saturday
+                #  here send start , end as first_week-1 for get data from daily log
+                print('worked first sunday')
+            elif today == second_week:
+                #  here send first_week , end as scnd week-1 for get data from daily log
+                print('worked first sunday')
+
+        if deadline == 17:
+            third_week = second_week + timedelta(4)
+            third_week = third_week.date()
+            if today == first_week:  # if starts 03-01 , then today == 03-07 is saturday
+                #  here send start , end as first_week-1 for get data from daily log
+                print('worked first sunday')
+            elif today == second_week:
+                #  here send first_week , end as scnd week-1 for get data from daily log
+                print('worked first sunday')
+            elif today == third_week:
+                #  here send second_week , end as +4 from second week, so 5th day from 2nd week is elif need to work
+                print('worked first sunday')
+
+        if deadline == 26:
+            if today == first_week:  # if starts 03-01 , then today == 03-07 is saturday
+                print('worked first sunday')
+            elif today == second_week:
+                print('worked first sunday')
+            elif today == third_week:
+                #  here send second_week , end as third week-1 for get data from daily log
+                print('worked first sunday')
+            elif today == fourth_week:
+                # here same like deadline = 17's third week : means: end as +4 and 5th day is send weekly report as replace that fourth_week
+                print('worked first sunday')
+
+        print('report is reco as project phase')
+        return ['during_project_phase', getstatus]
+    else:
+        print('msg not under any')
+        return [None, '']
 
 
 async def daily_update(context: ContextTypes.DEFAULT_TYPE):
@@ -95,19 +194,17 @@ async def daily_update(context: ContextTypes.DEFAULT_TYPE):
 
     if getstatus is None:
         print('no running batches')
-        return ['no_batches_currently', '']
     # if getstatus[0] <= yesterday_as_int <= getstatus[1]:
     #     # run the daily update in this case
     #     print('report is reco as planning')
     #     return ['during_planning', []]
     # elif getstatus[6] <= yesterday_as_int <= getstatus[5]:  # 5 is deadline as whole numbers
-    if getstatus[0] <= yesterday_as_int < getstatus[5]:  # 5 is deadline as whole numbers
+    if getstatus[0] <= yesterday_as_int <= getstatus[5]:  # 5 is deadline as whole numbers
         print('report is reco as project phase')
         daily_logs = await db_management.dbops('fetch_daily_log', [yesterday_as_int])
         print(f'daily_log {daily_logs}')
         if not daily_logs:
             print('no one updated yesterday')
-            return ['during_planning_phase', daily_logs]
         else:
             from collections import defaultdict
 
@@ -153,33 +250,10 @@ async def daily_update(context: ContextTypes.DEFAULT_TYPE):
                     text=message,
                     parse_mode="HTML"
                 )
-                # print(f"""
-                # Activity        : {activity_status}
-                # Update Status   : {update_status}
-                # Telegram ID     : {tele_id}
-                # Username        : {tele_username}
-                # Team Name       : {team_name}
-                # Deadline Date   : {team_deadline_as_date}
-                # Deadline        : {team_deadline}
-                # Team ID         : {team_id}
-                # point earned    : {point}
-                # """)
 
-            return ['during_planning_phase', daily_logs]
-    elif yesterday_as_int > getstatus[5]:
-        print('after deadline worked')
-        return ['after_deadline', getstatus]
     else:
         print('msg not under any')
-        return [None, '']
-
-
-async def daily_report(date: int):
-    get_devs = await  db_management.dbops('extract_dev_details', '')
-    print('get all devs who are joined in this batch')
-
-    print(get_devs)
 
 
 if __name__ == '__main__':
-    asyncio.run(daily_update())
+    asyncio.run(weekly_report())
