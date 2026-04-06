@@ -116,64 +116,68 @@ async def weekly_report():
     print(f'{getstatus}')
     # today
     today = datetime.now().date()
-    today = datetime.now().date() + timedelta(days=3)
+    today = datetime.now().date() + timedelta(days=8)
 
-    yesterday = today + timedelta(days=19)
     today_as_int = int(today.strftime("%Y%m%d"))
     start = getstatus[6]  # start date
     deadline = getstatus[3]  # start date
 
     start_as_str = str(start)  # e.g. 20260327
+    start_as_int = int(start)  # e.g. 20260327
     start_as_formate = datetime.strptime(start_as_str, "%Y%m%d")
 
-    first_week = start_as_formate + timedelta(7)
+    first_week = start_as_formate + timedelta(6)
     first_week = first_week.date()
+    first_week_as_int = int(first_week.strftime("%Y%m%d"))
 
-    second_week = start_as_formate + timedelta(14)
+    second_week = start_as_formate + timedelta(13)
     second_week = second_week.date()
+    second_week_as_int = int(second_week.strftime("%Y%m%d"))
 
-    devs = await  db_management.dbops('get_log_combined_for_week_update', [])
+    second_third_week_for_d_17 = second_week + timedelta(3)
+    second_third_week_as_int = int(second_third_week_for_d_17.strftime("%Y%m%d"))
+
+    third_week = second_week + timedelta(6)
+    third_week_as_int = int(third_week.strftime("%Y%m%d"))
+
+    fourth_week = third_week + timedelta(6)
+    fourth_week_as_int = int(fourth_week.strftime("%Y%m%d"))
 
     if getstatus is None:
         print('no running batches')
         return ['no_batches_currently', '']
     elif getstatus[6] <= today_as_int <= getstatus[5]:  # 5 is deadline as whole numbers, 6 is project starts
+        print('report is reco as project phase')
+
         print(
             f'today {today} and day {today.strftime("%A")}, first week {first_week} ,and start: {start_as_formate},deadline {deadline}')
-        if deadline == 14:
-            if today == first_week:  # if starts 03-01 , then today == 03-07 is saturday
-                #  here send start , end as first_week-1 for get data from daily log
-                print('worked first sunday')
-            elif today == second_week:
-                #  here send first_week , end as scnd week-1 for get data from daily log
-                print('worked first sunday')
 
-        if deadline == 17:
-            third_week = second_week + timedelta(4)
-            third_week = third_week.date()
-            if today == first_week:  # if starts 03-01 , then today == 03-07 is saturday
-                #  here send start , end as first_week-1 for get data from daily log
-                print('worked first sunday')
-            elif today == second_week:
-                #  here send first_week , end as scnd week-1 for get data from daily log
-                print('worked first sunday')
-            elif today == third_week:
-                #  here send second_week , end as +4 from second week, so 5th day from 2nd week is elif need to work
-                print('worked first sunday')
+        if today == first_week:  # if starts 03-01 , then today == 03-07 is saturday
+            print('worked first sunday')
+            get_ret = await  db_management.dbops('get_log_combined_for_week_update',
+                                                 [start_as_int, first_week_as_int, ''])
+        elif today == second_week:
+            print(f'worked second, {second_week}')
+            get_ret = await  db_management.dbops('get_log_combined_for_week_update',
+                                                 [first_week_as_int, second_week_as_int, ''])
+        elif today == second_third_week_for_d_17:  # for 17 days deadline devs only
+            #  here send second_week , end as +4 from second week, so 5th day from 2nd week is elif need to work
+            print(f'worked 3rd middle {second_third_week_for_d_17} ')
+            get_ret = await  db_management.dbops('get_log_combined_for_week_update',
+                                                 [second_week_as_int, second_third_week_as_int, '17d'])
+        elif today == third_week:
+            # here same like deadline = 17's third week : means: end as +4 and 5th day is send weekly report as replace that fourth_week
+            print(f'worked 3rd pure sunday {third_week}')
+            get_ret = await  db_management.dbops('get_log_combined_for_week_update',
+                                                 [second_week_as_int, third_week_as_int, ''])
+        elif today == fourth_week:
+            # here same like deadline = 17's third week : means: end as +4 and 5th day is send weekly report as replace that fourth_week
+            print(f'worked fourth sunday {fourth_week}')
+            get_ret = await  db_management.dbops('get_log_combined_for_week_update',
+                                                 [third_week_as_int, fourth_week_as_int, ''])
+        else:
+            print('not reco date')
 
-        if deadline == 26:
-            if today == first_week:  # if starts 03-01 , then today == 03-07 is saturday
-                print('worked first sunday')
-            elif today == second_week:
-                print('worked first sunday')
-            elif today == third_week:
-                #  here send second_week , end as third week-1 for get data from daily log
-                print('worked first sunday')
-            elif today == fourth_week:
-                # here same like deadline = 17's third week : means: end as +4 and 5th day is send weekly report as replace that fourth_week
-                print('worked first sunday')
-
-        print('report is reco as project phase')
         return ['during_project_phase', getstatus]
     else:
         print('msg not under any')

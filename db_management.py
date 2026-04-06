@@ -46,7 +46,7 @@ async def check_team_under_batch(args, cursor):
     if result is None or not result:
         return None
     else:
-        return result, result[0][4],result[0][5],result[0][6],result[0][7]
+        return result, result[0][4], result[0][5], result[0][6], result[0][7]
 
 
 def check_any_batches_running(cursor):
@@ -588,7 +588,7 @@ async def add_daily_update_in_logs(args, cursor):
 
             cursor.execute(query)
             query = f'''
-                     update devs set streak=1  where tele_id = '{user_id}';
+                     update devs set streak=1,weekly_streak=1  where tele_id = '{user_id}';
                   '''
             cursor.execute(query)
             return True
@@ -608,17 +608,23 @@ async def add_daily_update_in_logs(args, cursor):
         if yesterday == last_updation_day_formatted and last_updated_status == 1:
 
             query = f'''
-                select streak from devs where tele_id = '{user_id}';
+                select streak,weekly_streak from devs where tele_id = '{user_id}';
                 '''
             cursor.execute(query)
             result = cursor.fetchone()
             print(f'streak count is {result}')
             streak_count_db = result[0]
+            weekly_streak_count_db = result[1]
             streak_count_db += 1
 
-            query = f'''
-               update devs set streak={streak_count_db} where tele_id = '{user_id}';
-            '''
+            if streak_count_db > weekly_streak_count_db:
+                query = f'''
+               update devs set streak={streak_count_db},weekly_streak = {streak_count_db} where tele_id = '{user_id}';
+                '''
+            else:
+                query = f'''
+                   update devs set streak={streak_count_db} where tele_id = '{user_id}';
+                '''
             cursor.execute(query)
             query = f'''
                 select streak from devs where tele_id = '{user_id}';
@@ -1003,11 +1009,24 @@ async def clean_up_batch_end(args, cursor):
 
 
 async def get_log_combined_for_week_update(args, cursor):
-    print('')
-    # cursor.execute(f"""
-    # select teams.tele_id,devs.isFinished,teams.team_id from devs join teams on (teams.team_id =devs.team_id) where devs.team_id =?
-    # """, ('',))
-    # result = cursor.fetchall()
+    start_date = args[0]
+    end_date = args[1]
+    is_seventeen_d = args[2]
+    if is_seventeen_d == '17d':
+        query = f"""
+    select daily_logs.Date,daily_logs.PointEarned,daily_logs.tele_id,daily_logs.team_id,devs.weekly_streak,teams.end,devs.user_fullname,devs.user_name from daily_logs join teams on (teams.team_id = daily_logs.team_id) join devs on (daily_logs.tele_id = devs.tele_id ) 
+    where daily_logs.Date >= {start_date} and daily_logs.Date <= {end_date} and teams.end = 17 order by date asc
+        """
+    else:
+        query = f"""
+    select daily_logs.Date,daily_logs.PointEarned,daily_logs.tele_id,daily_logs.team_id,devs.weekly_streak,teams.end,devs.user_fullname,devs.user_name from daily_logs join teams on (teams.team_id = daily_logs.team_id) join devs on (daily_logs.tele_id = devs.tele_id ) 
+    where daily_logs.Date >= {start_date} and daily_logs.Date <= {end_date} order by date asc
+        """
+    cursor.execute(query)
+    result = cursor.fetchall()
+    print(f' result of logs of weeks  {result}')
+
+    return True if result else False
 
 
 async def dbops(operation, args):
