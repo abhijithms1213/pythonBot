@@ -1,7 +1,12 @@
+import re
 import sqlite3
 from datetime import datetime, timedelta
+
+from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 import datetime as day
+
+import helpers as helpers_py
 
 
 async def check_team_name_unique(args, cursor):
@@ -15,6 +20,19 @@ async def check_team_name_unique(args, cursor):
         return False
     else:
         return True
+
+
+async def get_team_details_based_team_id(args, cursor):
+    team_id = args[0]
+    query = f'''
+    select * from teams where team_id = {team_id};
+    '''
+    cursor.execute(query)
+    result = cursor.fetchall()
+    if result:
+        return result
+    else:
+        return []
 
 
 async def check_team_id_unique(args, cursor):
@@ -61,35 +79,91 @@ def check_any_batches_running(cursor):
         return result[0]
 
 
-def check_msg(msg_date, cursor):
+async def check_msg(args, cursor):
+    msg_date = args[0]
     # msg_date=20260312
+    update: Update = args[1]
+    context: ContextTypes.DEFAULT_TYPE = args[2]
+
     getstatus = check_any_batches_running(cursor)
     print(f'status: {getstatus} and msg date: {msg_date}')
     if getstatus is None:
-        print('no running batches')
-        return ['no_batches_currently', '']
-    # if getstatus[0] <= msg_date and msg_date <= getstatus[1]:
-    #     print('so its under the hood')
-    #     return ['during_planning_phase', getstatus]
+        dev_details = await get_one_dev_details([update.message.from_user.id], cursor)
+        if not dev_details[0]:
+            return ['no_batches_currently', '']
+        else:
+            dev_data = dev_details[1][0]
+            if not dev_data[5]:  # get team id
+                return ['no_batches_currently', '']
+            else:
+                team_details = await get_team_details_based_team_id([dev_data[5]], cursor)
+                if not team_details:
+                    return ['invalid_team_ref', '']
+                else:
+                    ext_bool = team_details[3]
+                    if not ext_bool:  # means dev not from prev batches user, means: old user ok with new batch ,
+                        return ['no_batches_currently', '']
+                    else:
+                        ext_date = team_details[4]
+                        today = int(datetime.now().strftime("%Y%m%d"))
+                        if ext_date < today:  # means extended but the deadline is already ended
+                            return ['deadline_is_over_already', '']
+                        else:  # not necessary to check is Finished because if finished then already wiped from prev batch already
+                            return_value = helpers_py.update_for_extended_devs(msg_date, update, dev_data[5],
+                                                                               dev_data[1])
+                            if return_value:
+                                print('true returned')
+                                return ['added_update_to_log', '']
+                            else:
+                                print('false returned')
+                                return ['something went wrong while updating', '']
+
+    if getstatus[0] <= msg_date and msg_date <= getstatus[1]:
+        print('so its under the hood')
+
+        dev_details = await get_one_dev_details([update.message.from_user.id], cursor)
+        if not dev_details[0]:
+            return ['during_planning_phase', getstatus]
+        else:
+            dev_data = dev_details[1][0]
+            if not dev_data[5]:  # get team id
+                return ['during_planning_phase', getstatus]
+            else:
+                team_details = await get_team_details_based_team_id([dev_data[5]], cursor)
+                if not team_details:
+                    return ['during_planning_phase', getstatus]
+                else:
+                    ext_bool = team_details[3]
+                    if not ext_bool:  # means dev not from prev batches user, means: old user ok with new batch ,
+                        return ['during_planning_phase', getstatus]
+                    else:
+                        ext_date = team_details[4]
+                        today = int(datetime.now().strftime("%Y%m%d"))
+                        if ext_date < today:  # means extended but the deadline is already ended
+                            return ['deadline_is_over_already', '']
+                        else:  # not necessary to check is Finished because if finished then already wiped from prev batch already
+                            return_value = helpers_py.update_for_extended_devs(msg_date, update, dev_data[5],
+                                                                               dev_data[1])
+                            if return_value:
+                                print('true returned')
+                                return ['added_update_to_log', '']
+                            else:
+                                print('false returned')
+                                return ['something went wrong while updating', '']
 
     # elif getstatus[6] <= msg_date <= getstatus[5]:  # 5 is deadline as whole numbers
     if getstatus[0] <= msg_date <= getstatus[5]:  # 5 is deadline as whole numbers
         print('its show tym')
         return ['during_project_phase', getstatus]
-    elif msg_date > getstatus[5]:
-        print('after deadline worked')
-        # handle if result[4] is 1
-        # check if dev extended already then ok to comment updates
-        # else don't need to record add warning 'u didn't mention during project phase'
-        return ['after_deadline', getstatus]
+
     else:
         print('msg not under any')
         return [None, '']
 
 
-def addnewbatch(date, cursor):
+async def addnewbatch(date, cursor):
     sanitizedDate = int(f'{date}'.replace('-', ''))
-    status = check_msg(sanitizedDate, cursor)
+    status = await check_msg([sanitizedDate], cursor)
     if status[0] == 'no_batches_currently':
         print(f'date is checking {sanitizedDate}\n')
         cursor.execute(f'''
@@ -1006,6 +1080,8 @@ async def clean_up_batch_end(args, cursor):
             ) 
    """, (today,))
 
+    # clean something ==========================
+
     # 5: Delete non-extended teams
     cursor.execute("""
         DELETE FROM teams
@@ -1013,6 +1089,26 @@ async def clean_up_batch_end(args, cursor):
             isExtended != 1
             OR (isExtended = 1 AND ExtDate < ?)
     """, (today,))
+
+    # users whose extension is already over ,also who never extended
+    cursor.execute("""
+        DELETE FROM daily_logs
+        WHERE EXISTS (
+            SELECT 1 FROM teams
+            WHERE teams.team_id = daily_logs.team_id
+              AND (
+                    teams.isExtended != 1
+                    OR teams.ExtDate <= ?
+                  )
+        )
+    """, (today,))
+
+    # batch update
+    cursor.execute("""
+        UPDATE batches
+        SET isCurrent = 0
+        WHERE isCurrent = 1
+    """)
 
     return finished, not_finished_not_extended, not_finished_extended
 
@@ -1194,17 +1290,27 @@ async def dev_extend_deadline(args, cursor):
     user_id = args[0]
     ext_date = args[1]
 
+    # 🔍 Step 1: Check current state
+    cursor.execute("""
+        SELECT isExtended FROM teams WHERE devs_id = ?
+    """, (user_id,))
+
+    row = cursor.fetchone()
+
+    if not row:
+        return False  # team not found
+
+    if row[0] == 1:
+        return False  # already extended ❌
+
+    # 🔄 Step 2: Perform update
     cursor.execute("""
         UPDATE teams 
         SET isExtended = 1, ExtDate = ?
         WHERE devs_id = ?
     """, (ext_date, user_id))
 
-    # check if any row updated
-    if cursor.rowcount > 0:
-        return True
-    else:
-        return False
+    return cursor.rowcount > 0
 
 
 async def dbops(operation, args):
@@ -1214,11 +1320,11 @@ async def dbops(operation, args):
         if operation == 'clear_batch':  # for clearing db
             clear_batch(cursor)
         if operation == 'check_batch':
-            return addnewbatch(args, cursor)
+            return await addnewbatch(args, cursor)
         if operation == 'get_current_batch':
             return check_any_batches_running(cursor)
         if operation == 'check_is_msg_under_planning_phase':
-            return check_msg(args, cursor)
+            return await check_msg(args, cursor)
         # user join group related
         if operation == 'add_dev_to_db':  # used in that  msg_process method
             return await add_dev_to_db(args, cursor)
@@ -1240,7 +1346,8 @@ async def dbops(operation, args):
             return await dev_extend_deadline(args, cursor)
         if operation == 'update_dev_detail_if_found':
             return await update_dev_detail_if_found(args, cursor)
-
+        if operation == 'get_team_details_based_team_id':
+            return await get_team_details_based_team_id(args, cursor)
         # ====================================
         if operation == 'add_to_team':
             return await add_to_team(args, cursor)
