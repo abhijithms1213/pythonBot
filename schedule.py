@@ -1,4 +1,5 @@
 import asyncio
+from collections import defaultdict
 from xmlrpc.client import DateTime
 
 from telegram import Update
@@ -6,12 +7,13 @@ from datetime import datetime, timedelta
 import re
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 import operator as op
-from telegram.constants import MessageEntityType
 
 import helpers
 import db_management
 
 from datetime import datetime, timedelta
+
+from telegram.constants import MessageEntityType
 
 
 # async def daily_update():
@@ -42,6 +44,100 @@ from datetime import datetime, timedelta
 #     else:
 #         print('msg not under any')
 #         return [None, '']
+async def process_weekly_report(start_as_int, first_week_as_int):
+    # 🔹 Step 1: Get logs
+    get_ret = await db_management.dbops(
+        'get_log_combined_for_week_update',
+        [start_as_int, first_week_as_int, '']
+    )
+
+    if not get_ret:
+        return 'no_records'
+
+    # 🔹 Step 2: Aggregate logs per dev
+    dev_stats = {}
+
+    for log in get_ret:
+        date, points, tele_id, team_id, deadline, name, username = log
+
+        if tele_id not in dev_stats:
+            dev_stats[tele_id] = {
+                'name': name,
+                'username': username,
+                'weekly_points': 0,
+                'active_days': set(),
+                'streak_point_earned': False
+            }
+
+        # ✅ Add daily points
+        dev_stats[tele_id]['weekly_points'] += points
+
+        # ✅ Track unique active days
+        dev_stats[tele_id]['active_days'].add(date)
+
+    # 🔹 Step 3: Convert active_days set → int
+    for dev in dev_stats.values():
+        dev['active_days'] = len(dev['active_days'])
+
+    # 🔹 Step 4: Process each dev (ONLY ONCE PER DEV)
+    for tele_id, dev in dev_stats.items():
+
+        # ✅ Fetch dev details ONCE
+        dev_details = await db_management.dbops(
+            'get_one_dev_details',
+            [tele_id]
+        )
+
+        if not dev_details[0]:
+            continue
+
+        dev_data = dev_details[1][0]
+
+        # 🔹 weekly streak column
+        weekly_streak = dev_data[10]
+
+        # 🔥 Correct bonus logic
+        bonus = (weekly_streak // 6) * 2
+
+        if bonus > 0:
+            dev['streak_point_earned'] = True
+
+        # 🔹 Final points
+        dev['final_points'] = dev['weekly_points'] + bonus
+
+        # 🔹 Update DB
+        await db_management.dbops(
+            'update_dev_points_and_cycle',
+            [tele_id, dev['final_points'], bonus]
+        )
+
+    # 🔹 Step 5: Leaderboard
+    leaderboard = sorted(
+        dev_stats.values(),
+        key=lambda x: x['final_points'],
+        reverse=True
+    )
+
+    # 🔹 Step 6: Build report
+    # 🔹 Step 6: Build report (WITH USER ID TAGGING)
+    report = "🏆 <b>Weekly Leaderboard</b>\n\n"
+
+    for i, (tele_id, dev) in enumerate(
+            sorted(dev_stats.items(), key=lambda x: x[1]['final_points'], reverse=True),
+            start=1):
+        streak_tag = " 🔥" if dev['streak_point_earned'] else ""
+
+        # ✅ Proper Telegram user mention using ID
+        user_tag = f'<a href="tg://user?id={tele_id}">{dev["name"]}</a>'
+
+        report += (
+            f"<b>{i}.</b> {user_tag} — "
+            f"<b>{dev['final_points']} pts</b> "
+            f"({dev['active_days']} days){streak_tag}\n"
+        )
+
+    return report
+
 
 def format_users(users):
     formatted = []
@@ -109,14 +205,14 @@ def attention_msgs():
     print('attention')
 
 
-async def weekly_report():
+async def weekly_report(context: ContextTypes.DEFAULT_TYPE):
     print('weekly')
     getstatus = await  db_management.dbops('get_current_batch', '')
     print(f'batch: {type(getstatus[1])} {type(getstatus[0])}')
     print(f'{getstatus}')
     # today
     today = datetime.now().date()
-    today = datetime.now().date() + timedelta(days=8)
+    today = datetime.now().date() + timedelta(days=1)
 
     today_as_int = int(today.strftime("%Y%m%d"))
     start = getstatus[6]  # start date
@@ -154,27 +250,104 @@ async def weekly_report():
 
         if today == first_week:  # if starts 03-01 , then today == 03-07 is saturday
             print('worked first sunday')
-            get_ret = await  db_management.dbops('get_log_combined_for_week_update',
-                                                 [start_as_int, first_week_as_int, ''])
+            # get_ret = await  db_management.dbops('get_log_combined_for_week_update',
+            #                                      [start_as_int, first_week_as_int, ''])
+            # if not get_ret:
+            #     return 'no_records'
+            # else:
+            #     # print(f'return logs :{get_ret}')
+            #
+            #     dev_stats = {}
+            #
+            #     for log in get_ret:
+            #         date, points, tele_id, team_id, deadline, name, username = log
+            #
+            #         if tele_id not in dev_stats:
+            #             dev_stats[tele_id] = {
+            #                 'name': name,
+            #                 'username': username,
+            #                 'weekly_points': 0,
+            #                 'active_days': set(),
+            #                 'streak_point_earned': False
+            #             }
+            #
+            #         # ✅ Add daily points
+            #         dev_stats[tele_id]['weekly_points'] += points
+            #         # ✅ Track unique active days
+            #         dev_stats[tele_id]['active_days'].add(date)
+            #
+            #     for tele_id, dev in dev_stats.items():
+            #
+            #         dev_details = await db_management.dbops(
+            #             'get_one_dev_details',
+            #             [tele_id]
+            #         )
+            #
+            #         if not dev_details[0]:
+            #             continue
+            #
+            #         dev_data = dev_details[1][0]
+            #
+            #         weekly_streak = dev_data[10]  # your weekly streak column
+            #
+            #         bonus = 0
+            #
+            #         if weekly_streak >= 6:
+            #             bonus = 2
+            #             dev['streak_point_earned'] = True
+            #
+            #         total_week_points = dev['weekly_points'] + bonus
+            #
+            #         # ✅ Update DB (correct way)
+            #         await db_management.dbops(
+            #             'update_dev_points_and_cycle',
+            #             [tele_id, total_week_points, bonus]
+            #         )
+
         elif today == second_week:
             print(f'worked second, {second_week}')
-            get_ret = await  db_management.dbops('get_log_combined_for_week_update',
-                                                 [first_week_as_int, second_week_as_int, ''])
+            report = await process_weekly_report(first_week_as_int, second_week_as_int)
+
+            if report == 'no_records':
+                await context.bot.send_message(
+                    # chat_id=update.effective_chat.id,
+                    chat_id=12,
+                    text="⚠️ No records for this week"
+                )
+                return 0
+            await context.bot.send_message(
+                chat_id=12,
+                text=report,
+                parse_mode='HTML'
+            )
+
         elif today == second_third_week_for_d_17:  # for 17 days deadline devs only
             #  here send second_week , end as +4 from second week, so 5th day from 2nd week is elif need to work
             print(f'worked 3rd middle {second_third_week_for_d_17} ')
             get_ret = await  db_management.dbops('get_log_combined_for_week_update',
                                                  [second_week_as_int, second_third_week_as_int, '17d'])
+            if not get_ret:
+                return 'no_records'
+            else:
+                print('i got')
         elif today == third_week:
             # here same like deadline = 17's third week : means: end as +4 and 5th day is send weekly report as replace that fourth_week
             print(f'worked 3rd pure sunday {third_week}')
             get_ret = await  db_management.dbops('get_log_combined_for_week_update',
                                                  [second_week_as_int, third_week_as_int, ''])
+            if not get_ret:
+                return 'no_records'
+            else:
+                print('i got')
         elif today == fourth_week:
             # here same like deadline = 17's third week : means: end as +4 and 5th day is send weekly report as replace that fourth_week
             print(f'worked fourth sunday {fourth_week}')
             get_ret = await  db_management.dbops('get_log_combined_for_week_update',
                                                  [third_week_as_int, fourth_week_as_int, ''])
+            if not get_ret:
+                return 'no_records'
+            else:
+                print('i got')
         else:
             print('not reco date')
 
