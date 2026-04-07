@@ -1,6 +1,14 @@
 import random
 import asyncio
+
+from telegram import Update
+
 import db_management
+
+import re
+from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
+import operator as op
+from telegram.constants import MessageEntityType
 
 
 def randint(min=00000, max=99999):
@@ -69,6 +77,59 @@ def get_random_team_name() -> str:
 # ✅ METHOD 2 → SOLO NAME
 def get_random_solo_name() -> str:
     return random.choice(SOLO_NAMES)
+
+
+async def update_for_extended_devs(msg_date, update: Update,team_id_ret,user_name_ret):
+    # checks is user's data already here in logs with current date
+    sanitized_date = msg_date
+
+    user_id = update.message.from_user.id
+    user_name = update.message.chat.username
+    msg = update.message.text
+    msg_lower = msg.lower()
+
+    is_user = await db_management.dbops('daily_activity_record_check_record', [user_id, sanitized_date])
+    print(f'user :{is_user} ')
+    if not is_user:
+        print('user is empty coz list is empty')
+        match = re.search(r'update:\s*(.*)', msg_lower, re.DOTALL)
+        # if user's 1st msg in that day is update: then this
+        if match:
+            #
+            message = match.group(1).strip()
+            print(f'update msg: {message} and length {len(message)}')
+            status_ret = await db_management.dbops('add_daily_update_in_logs',
+                                                   [sanitized_date, user_id, user_name_ret, message,
+                                                    0, team_id_ret])  # last 0 means first entry
+            return True
+
+        else:
+            is_updated = await  db_management.dbops('add_activity_msg_first_entry_today',
+                                                    [user_id, msg, sanitized_date, user_name_ret,
+                                                     0, team_id_ret])  # last 0 means first entry
+
+            if is_updated:
+                print('its not update msg its daily activity')
+                return True
+    else:
+        #  it's not first msg so already tuple added in daily_log table
+        print('the else worked means user doc found in daily_logs')
+        match = re.search(r'update:\s*(.*)', msg_lower, re.DOTALL)
+        if match:
+            message = match.group(1).strip()
+            is_updated = await db_management.dbops('add_daily_update_in_logs',
+                                                   [sanitized_date, user_id, user_name_ret, message,
+                                                    1,
+                                                    team_id_ret])  # 0,0 is user_name last 0 means first entry
+            if is_updated:
+                print(f'it"s after first update msg: {message} and length {len(message)}')
+                return True
+        else:
+            activity_status = await db_management.dbops('add_activity_msg_first_entry_today',
+                                                        [user_id, msg, sanitized_date, user_name_ret,
+                                                         1, team_id_ret])  # last 0 means first entry
+            print('msg after first record it"s activity')
+    return True
 
 
 if __name__ == '__main__':
