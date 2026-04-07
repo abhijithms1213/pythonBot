@@ -253,6 +253,14 @@ async def grp_msg(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         f'args:{update.message.text} user: name: {update.message.from_user.username} id:{update.message.from_user.id}')
     current_id = update.message.chat.id
     if zero_dev_grp_id == current_id:
+        is_user_updated = await db_management.dbops('update_dev_detail_if_found',
+                                                    [update.message.from_user.id, context])
+        user_status = is_user_updated[0]
+        if user_status:
+            print(f'found in db and updated {is_user_updated[1]}')
+        else:
+            print('not found in db')
+
         #  check mention working or not
         if update.message.text == 'mention':
             chat_id = update.effective_chat.id

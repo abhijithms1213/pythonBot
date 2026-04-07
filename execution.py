@@ -46,7 +46,7 @@ async def msg_process(msg_date, update: Update, context: ContextTypes.DEFAULT_TY
     lower_msg = msg.lower()
 
     print(f'lower is : {lower_msg}\n============================')
-    deadlines = ['14', '17', '21']
+    deadlines = ['14', '17', '26']
     # deadlines = ['14', '17', '21', '14d', '21d', '17d']
     find_starting = '/new'
     find_topic = '/topic'
@@ -232,6 +232,7 @@ async def project_phase(msg_date, update: Update, context: ContextTypes.DEFAULT_
     date_only = date_to_string[:10]
     sanitized_date = int(date_only.replace('-', ''))
     print(f'msg date: {date_only} and sanitized :{sanitized_date}')
+    sanitized_date = 20260411
 
     current_batch = current_batch
     user_id = update.message.from_user.id
@@ -253,15 +254,33 @@ async def project_phase(msg_date, update: Update, context: ContextTypes.DEFAULT_
         team_id_ret = user_doc[2]
         user_name_ret = user_doc[3]
         print(f'is finished :{isFinishedFromUser}')
+
+        extend_msg = re.search(
+            r'extend(?:\s*[:=]?\s*|\s+for\s+)(7|14)\b',
+            msg_lower
+        )
+
+        if extend_msg:
+            ext_days = int(extend_msg.group(1))
+            new_ext_date = datetime.strptime(str(deadline_as_date), '%Y%m%d')
+            temp = new_ext_date + timedelta(days=ext_days)
+            ext_new_date = int(temp.strftime("%Y%m%d"))
+            update_stat = await db_management.dbops('dev_extend_deadline',
+                                                    [user_id, ext_new_date])
+            if update_stat:
+                return 'done'
+            else:
+                return 'not_updated_something_wrong'
+
         is_all_ok = False
         if sanitized_date <= deadline_as_date:
             if isFinishedFromUser == 1:
-                return 'already finished'
+                return 'already_finished'
         else:
             if is_extended == 1 and sanitized_date <= ext_date:
                 is_all_ok = True
             else:
-                return 'date after extension'
+                return 'date_after_extension'
         if not isFinishedFromUser == 1 or is_all_ok:
             # checks is user's data already here in logs with current date
             is_user = await db_management.dbops('daily_activity_record_check_record', [user_id, sanitized_date])

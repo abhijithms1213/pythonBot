@@ -413,7 +413,7 @@ async def add_to_team(args, cursor):
 
         # added team
         query = f'''
-        insert into teams (batch_id,team_id,dev_count,isExtended,ExtDate,start,end,deadline_as_date,topic,repository,tech_stack,team_name) values ({batch_id},{team_id},{dev_count},0,0,{start},{updated_deadline},{deadline_full},'{topic}','{github_repo}','{tech_stack}','{team_name}');
+        insert into teams (batch_id,team_id,dev_count,isExtended,ExtDate,start,end,deadline_as_date,topic,repository,tech_stack,team_name) values ({batch_id},{team_id},{dev_count},0,{deadline_full},{start},{updated_deadline},{deadline_full},'{topic}','{github_repo}','{tech_stack}','{team_name}');
         '''
         #  remove those fields from usr
         print(f'query while adding team {query}')
@@ -987,23 +987,32 @@ async def clean_up_batch_end(args, cursor):
         WHERE d.isFinished = 0 AND t.isExtended = 1
     """).fetchall()
 
-    # 5: Delete non-extended teams
+    today = int(datetime.now().strftime("%Y%m%d"))
+
     cursor.execute("""
         UPDATE devs
         SET batch_id = NULL,
-            team_id = NULL
-        WHERE team_id IN (
-            SELECT team_id
-            FROM teams
-            WHERE isExtended = 0
-            )
-    """)
+            team_id = NULL,
+            weekly_streak = 0,
+            total_points = 0,
+            streak_cycles = 0,
+            streak = 0
+            WHERE team_id IN (
+                SELECT team_id
+                FROM teams
+                WHERE 
+                    isExtended = 0
+                    OR (isExtended = 1 AND ExtDate < ?)
+            ) 
+   """, (today,))
 
     # 5: Delete non-extended teams
     cursor.execute("""
         DELETE FROM teams
-        WHERE isExtended != 1
-    """)
+        WHERE 
+            isExtended != 1
+            OR (isExtended = 1 AND ExtDate < ?)
+    """, (today,))
 
     return finished, not_finished_not_extended, not_finished_extended
 
@@ -1014,19 +1023,188 @@ async def get_log_combined_for_week_update(args, cursor):
     is_seventeen_d = args[2]
     if is_seventeen_d == '17d':
         query = f"""
-    select daily_logs.Date,daily_logs.PointEarned,daily_logs.tele_id,daily_logs.team_id,devs.weekly_streak,teams.end,devs.user_fullname,devs.user_name from daily_logs join teams on (teams.team_id = daily_logs.team_id) join devs on (daily_logs.tele_id = devs.tele_id ) 
+    select daily_logs.Date,daily_logs.PointEarned,daily_logs.tele_id,daily_logs.team_id,teams.end,devs.user_fullname,devs.user_name from daily_logs join teams on (teams.team_id = daily_logs.team_id) join devs on (daily_logs.tele_id = devs.tele_id ) 
     where daily_logs.Date >= {start_date} and daily_logs.Date <= {end_date} and teams.end = 17 order by date asc
         """
     else:
         query = f"""
-    select daily_logs.Date,daily_logs.PointEarned,daily_logs.tele_id,daily_logs.team_id,devs.weekly_streak,teams.end,devs.user_fullname,devs.user_name from daily_logs join teams on (teams.team_id = daily_logs.team_id) join devs on (daily_logs.tele_id = devs.tele_id ) 
+    select daily_logs.Date,daily_logs.PointEarned,daily_logs.tele_id,daily_logs.team_id,teams.end,devs.user_fullname,devs.user_name from daily_logs join teams on (teams.team_id = daily_logs.team_id) join devs on (daily_logs.tele_id = devs.tele_id ) 
     where daily_logs.Date >= {start_date} and daily_logs.Date <= {end_date} order by date asc
         """
     cursor.execute(query)
     result = cursor.fetchall()
     print(f' result of logs of weeks  {result}')
 
-    return True if result else False
+    return result if result else False
+
+
+async def get_one_dev_details(args, cursor):
+    user_id = args[0]
+
+    query = f'''
+    select * from devs where tele_id = '{user_id}';
+    '''
+    cursor.execute(query)
+    result = cursor.fetchall()
+
+    if not result:
+        print('false as not found record so adding fresh user')
+        return [False, []]
+    else:
+        return [True, result]
+
+
+def update_streak_cycle(args, cursor):
+    user_id = args[0]
+    query = f'''
+    select streak_cycles from devs where tele_id = '{user_id}'
+    '''
+    cursor.execute(query)
+    streak_db = cursor.fetchone()
+    streak_db += 1
+
+    query = f'''
+    update devs set streak_cycles= {streak_db} where tele_id = '{user_id}';
+    '''
+    cursor.execute(query)
+
+    query = f'''
+       select * from devs where tele_id = '{user_id}'
+       '''
+    cursor.execute(query)
+    result = cursor.fetchone()
+
+    print(f'weekly streak count after update :{result}')
+    return False if not result else True
+
+
+def dev_total_point_update(args, cursor):
+    user_id = args[0]
+    points = args[1]
+
+    query = f'''
+    select streak_cycles from devs where tele_id = '{user_id}'
+    '''
+    cursor.execute(query)
+    point_db = cursor.fetchone()
+    points += point_db
+
+    #  weekly streak also add as 0 after all calculations
+    query = f'''
+    update devs set total_points = {points},weekly_streak = 0 where tele_id = '{user_id}';
+    '''
+
+    cursor.execute(query)
+    result = cursor.fetchall()
+
+    if not result:
+        print('false as not found record so adding fresh user')
+
+    return False if not result else True
+
+
+async def update_dev_points_and_cycle(args, cursor):
+    user_id = args[0]
+    weekly_points = args[1]
+    bonus = args[2]
+
+    # get current values
+    cursor.execute(
+        "SELECT total_points, streak_cycles FROM devs WHERE tele_id=?",
+        (user_id,)
+    )
+    row = cursor.fetchone()
+
+    if not row:
+        return False
+
+    total_points_db, streak_cycles = row
+
+    # ✅ update streak cycle only if bonus applied
+    if bonus > 0:
+        streak_cycles += 1
+
+    if total_points_db + weekly_points >= 60:
+        total_points_db = 60
+    else:
+        total_points_db += weekly_points
+
+    # ✅ update everything in ONE query
+    cursor.execute("""
+        UPDATE devs 
+        SET total_points = ?, 
+            streak_cycles = ?, 
+            weekly_streak = 0
+        WHERE tele_id = ?
+    """, (total_points_db, streak_cycles, user_id))
+
+    return True
+
+
+async def update_dev_detail_if_found(args, cursor):
+    user_id = args[0]
+    context: ContextTypes.DEFAULT_TYPE = args[1]
+    chat_usr = await context.bot.get_chat(chat_id=user_id)
+    first_name = chat_usr.first_name
+    fullname = chat_usr.full_name
+    user_name = chat_usr.username
+    print(f'user id : {user_id} type:{type(user_id)} name is {user_name} , first: {first_name},full : {fullname}')
+
+    query = f'''
+    select * from devs where tele_id = '{user_id}';
+    '''
+    cursor.execute(query)
+    result = cursor.fetchone()
+
+    print(f'result {result} and ')
+    if result:
+        print('found user so not updating')
+        return [False, []]
+    else:
+        if user_name:
+            query = f'''
+                select * from devs where user_name = '{user_name}';
+            '''
+            cursor.execute(query)
+            result = cursor.fetchall()
+
+            if result:
+                print('match found')
+                query = f'''
+                          update devs set tele_id= '{user_id}',user_fullname = '{fullname}',user_firstname= '{first_name}' where user_name = '{user_name}';
+                      '''
+                cursor.execute(query)
+                query = f'''
+                           select * from devs where tele_id = '{user_id}';
+                      '''
+                result = cursor.execute(query)
+                print(f'user updating : {result}')
+                return [True, result]
+            else:
+                print('means user name abc not found in db, so not update')
+
+                return [False, []]  # result means user's data , and take the team id from it
+        else:
+            print(
+                'user with tele_id may already recorded if found else user no longer exist in db(only batch users recorded)')
+            return [False, []]  # result means user's data , and take the team id from it
+
+
+async def dev_extend_deadline(args, cursor):
+    user_id = args[0]
+    ext_date = args[1]
+
+    cursor.execute("""
+        UPDATE teams 
+        SET isExtended = 1, ExtDate = ?
+        WHERE devs_id = ?
+    """, (ext_date, user_id))
+
+    # check if any row updated
+    if cursor.rowcount > 0:
+        return True
+    else:
+        return False
 
 
 async def dbops(operation, args):
@@ -1050,8 +1228,19 @@ async def dbops(operation, args):
             return await check_is_user_already_exist_in_user_db(args, cursor)
         if operation == 'add_new_user_to_db':  # while joining /join
             return add_new_user_to_db(args, cursor)
+        if operation == 'update_dev_points_and_cycle':
+            return await update_dev_points_and_cycle(args, cursor)
+        if operation == 'update_streak_cycle':
+            return update_streak_cycle(args, cursor)
+        if operation == 'get_one_dev_details':
+            return await get_one_dev_details(args, cursor)
         if operation == 'update_deadline_of_batch':
             return update_deadline_of_batch(args, cursor)
+        if operation == 'dev_extend_deadline':
+            return await dev_extend_deadline(args, cursor)
+        if operation == 'update_dev_detail_if_found':
+            return await update_dev_detail_if_found(args, cursor)
+
         # ====================================
         if operation == 'add_to_team':
             return await add_to_team(args, cursor)
