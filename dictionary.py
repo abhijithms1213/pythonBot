@@ -85,7 +85,7 @@ async def check_msg(msg_date, update, context):
     # print(f"[INFO] msg date extracted: {date_only}")
 
     extracted = int(date_only.replace('-', ''))
-    extracted = 20260423  # override for testing
+    extracted = 20260422  # override for testing
     print(f' extracted date: {extracted}')
 
     ret_status = await db_management.dbops(

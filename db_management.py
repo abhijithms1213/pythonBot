@@ -586,13 +586,15 @@ async def add_daily_update_in_logs(args, cursor):
                 cursor
             )
         else:
-            query = f'''
-                update daily_logs set isUpdated = 1,UpdateText= '{msg_content}' where  tele_id = {user_id} and Date = {msg_date};
-            '''
+           query = """
+            UPDATE daily_logs 
+            SET isUpdated = 1, UpdateText = ?
+            WHERE tele_id = ? AND Date = ?
+            """
 
-            cursor.execute(query)
+            cursor.execute(query, (msg_content, user_id, msg_date))
             query = f'''
-                select isUpdated from daily_logs where tele_id = {user_id} and Date = {msg_date};
+                select isUpdated from daily_logs where tele_id = '{user_id}' and Date = {msg_date};
             '''
 
             cursor.execute(query)
@@ -617,11 +619,13 @@ async def add_daily_update_in_logs(args, cursor):
         print(f'fetch all from update:{result} and {result[0]} and {result[0][1]} ')
 
         if len(result) == 1:  # meanS is it's first record (in table then no second doc for compare)
-            query = f'''
-                         update daily_logs set isUpdated = 1,UpdateText= '{msg_content}' where  tele_id = {user_id} and Date = {msg_date};
-                     '''
+            query = """
+            UPDATE daily_logs 
+            SET isUpdated = 1, UpdateText = ?
+            WHERE tele_id = ? AND Date = ?
+            """
 
-            cursor.execute(query)
+            cursor.execute(query, (msg_content, user_id, msg_date))
             query = f'''
                      update devs set streak=1,weekly_streak=1  where tele_id = '{user_id}';
                   '''
@@ -857,17 +861,37 @@ async def update_daily_point(args, cursor):
 async def fetch_daily_log(args, cursor):
     date: int = args[0]
 
-    query = f'''
-    select daily_logs.Activity,daily_logs.isUpdated,daily_logs.tele_id,daily_logs.UserName,teams.team_name,teams.deadline_as_date,teams.end,teams.team_id,daily_logs.PointEarned teams from daily_logs join teams on (teams.team_id= daily_logs.team_id) where daily_logs.Date = {date} order by daily_logs.team_id asc;
-    '''
-    # checks is user found in this batch
-    cursor.execute(query)
+    query = """
+    SELECT 
+        daily_logs.Activity,
+        daily_logs.isUpdated,
+        daily_logs.tele_id,
+        daily_logs.UserName,
+        devs.user_firstname,             
+        teams.team_name,
+        teams.deadline_as_date,
+        teams.end,
+        teams.team_id,
+        daily_logs.PointEarned
+    FROM daily_logs
+    JOIN teams 
+        ON teams.team_id = daily_logs.team_id
+    LEFT JOIN devs 
+        ON devs.tele_id = daily_logs.tele_id
+    WHERE daily_logs.Date = ?
+    ORDER BY daily_logs.team_id ASC;
+    """
+
+    cursor.execute(query, (date,))
     result = cursor.fetchall()
-    print(f'from raw daily_logs is :{result} and query: {query}')
-    if result is None:
+
+    print(f'[DEBUG] daily_logs: {result}')
+
+    # ❗ fetchall() returns [] not None
+    if not result:
         return None
-    else:
-        return result
+
+    return result
 
 
 async def updating_user_project_finish_and_clean_up(args, cursor):
