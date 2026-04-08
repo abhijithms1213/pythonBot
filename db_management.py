@@ -758,11 +758,13 @@ async def add_activity_msg_first_entry_today(args, cursor):
 
                 cursor.execute(query)
                 query = f'''
-                    select Activity from daily_logs where tele_id = '{user_id}';
+                    select Activity from daily_logs where tele_id = '{user_id}'and Date = {msg_date};
                 '''
                 cursor.execute(query)
-                result = cursor.fetchone()
-                if result[0] == 1:
+                is_activity_updated = cursor.fetchall()
+                print(f'result sflslfsjf:{is_activity_updated[0]}')
+                if is_activity_updated[0][0] == 1:
+                    print('worked if ')
                     # update point
                     point = await update_daily_point(
                         [1, user_id, user_name, team_id, point_earned,
@@ -771,7 +773,7 @@ async def add_activity_msg_first_entry_today(args, cursor):
                     return False
             else:
                 query = f'''
-                               update daily_logs set MsgLen= {msg_added_length} where tele_id = {user_id} and Date = {msg_date};
+                               update daily_logs set MsgLen= {msg_added_length} where tele_id = '{user_id}' and Date = {msg_date};
                            '''
 
                 cursor.execute(query)
@@ -820,7 +822,7 @@ async def update_daily_point(args, cursor):
         elif deadline == 17:
             # point add is 2
             point = point_earned + 2
-        elif deadline == 21:
+        elif deadline == 26:
             # point add is 1
             point = point_earned + 1
         else:
@@ -835,7 +837,8 @@ async def update_daily_point(args, cursor):
         elif deadline == 17:
             # point add is 1
             point = point_earned + 1
-        elif deadline == 21:
+        elif deadline == 26:
+            print(f'in 26 points: {point_earned} and earned in activity')
             # point add is 1
             point = point_earned + 1
         else:

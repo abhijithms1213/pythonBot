@@ -85,7 +85,7 @@ async def check_msg(msg_date, update, context):
     # print(f"[INFO] msg date extracted: {date_only}")
 
     extracted = int(date_only.replace('-', ''))
-    extracted = 20260411  # override for testing
+    extracted = 20260423  # override for testing
     print(f' extracted date: {extracted}')
 
     ret_status = await db_management.dbops(
@@ -435,11 +435,15 @@ async def check_msg(msg_date, update, context):
                 [update.message.from_user.id]
             )
             if dev_details[0]:
-                return_value = await  execution.project_phase(extracted, update, context, current_batch)
-                if isinstance(return_value, bool) and return_value == True:
-                    print('true returned')
+                if isinstance(dev_details[1][0][5], int) and dev_details[1][0][5]:
+                    return_value = await  execution.project_phase(extracted, update, context, current_batch)
+                    if isinstance(return_value, bool) and return_value == True:
+                        print('true returned')
+                    else:
+                        print('false returned')
                 else:
-                    print('false returned')
+                    print(f'team is :{dev_details[1][0][5]}')
+                    print('user found but team id is null , not registered in project phase')
             else:
                 print('not found this user in db')
                 return
