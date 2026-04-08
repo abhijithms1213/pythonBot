@@ -30,7 +30,8 @@ async def get_team_details_based_team_id(args, cursor):
     cursor.execute(query)
     result = cursor.fetchall()
     if result:
-        return result
+        # print(f'teams: of msged user {result[0]}')
+        return result[0]
     else:
         return []
 
@@ -161,9 +162,14 @@ async def check_msg(args, cursor):
         return [None, '']
 
 
-async def addnewbatch(date, cursor):
+async def addnewbatch(args, cursor):
+    date = args[0]
+    # msg_date=20260312
+    update: Update = args[1]
+    context: ContextTypes.DEFAULT_TYPE = args[2]
+
     sanitizedDate = int(f'{date}'.replace('-', ''))
-    status = await check_msg([sanitizedDate], cursor)
+    status = await check_msg([sanitizedDate,update,context], cursor)
     if status[0] == 'no_batches_currently':
         print(f'date is checking {sanitizedDate}\n')
         cursor.execute(f'''
@@ -1244,7 +1250,8 @@ async def update_dev_detail_if_found(args, cursor):
     first_name = chat_usr.first_name
     fullname = chat_usr.full_name
     user_name = chat_usr.username
-    print(f'user id : {user_id} type:{type(user_id)} name is {user_name} , first: {first_name},full : {fullname}')
+    include_user_name = f'@{user_name}'
+    print(f'user id : {user_id} type:{type(user_id)} name is {user_name} and include: {include_user_name}, first: {first_name},full : {fullname}')
 
     query = f'''
     select * from devs where tele_id = '{user_id}';
@@ -1252,14 +1259,14 @@ async def update_dev_detail_if_found(args, cursor):
     cursor.execute(query)
     result = cursor.fetchone()
 
-    print(f'result {result} and ')
+    print(f'checking user avlblty ,xxxxxxxxxxxxx {result}')
     if result:
         print('found user so not updating')
         return [False, []]
     else:
         if user_name:
             query = f'''
-                select * from devs where user_name = '{user_name}';
+                select * from devs where user_name = '{include_user_name}';
             '''
             cursor.execute(query)
             result = cursor.fetchall()
@@ -1267,7 +1274,7 @@ async def update_dev_detail_if_found(args, cursor):
             if result:
                 print('match found')
                 query = f'''
-                          update devs set tele_id= '{user_id}',user_fullname = '{fullname}',user_firstname= '{first_name}' where user_name = '{user_name}';
+                          update devs set tele_id= '{user_id}',user_fullname = '{fullname}',user_firstname= '{first_name}' where user_name = '{include_user_name}';
                       '''
                 cursor.execute(query)
                 query = f'''

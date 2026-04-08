@@ -232,7 +232,9 @@ async def project_phase(msg_date, update: Update, context: ContextTypes.DEFAULT_
     date_only = date_to_string[:10]
     sanitized_date = int(date_only.replace('-', ''))
     print(f'msg date: {date_only} and sanitized :{sanitized_date}')
-    sanitized_date = 20260411
+
+    # don't forget to replace below
+    # sanitized_date = 20260411
 
     current_batch = current_batch
     user_id = update.message.from_user.id
@@ -282,6 +284,7 @@ async def project_phase(msg_date, update: Update, context: ContextTypes.DEFAULT_
             else:
                 return 'date_after_extension'
         if not isFinishedFromUser == 1 or is_all_ok:
+            print('entered recording section in project phase')
             # checks is user's data already here in logs with current date
             is_user = await db_management.dbops('daily_activity_record_check_record', [user_id, sanitized_date])
             print(f'user :{is_user} ')

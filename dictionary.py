@@ -8,6 +8,7 @@ from telegram import ForceReply, Update
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 from dotenv import load_dotenv
 import os
+import schedule as schedule_py
 
 import helpers as helpers_py
 
@@ -69,7 +70,7 @@ print(district)
 
 
 async def batch_creates(date, context, update):
-    status = await db_management.dbops('check_batch', date)
+    status = await db_management.dbops('check_batch', [date,update,context])
     if status == 'added_new_batch':
         await  context.bot.send_message(chat_id=update.message.chat_id,
                                         text='remember not start a batch on month ends , need 2 day gap')
@@ -86,6 +87,9 @@ async def check_msg(msg_date, update, context):
     ret_status = await db_management.dbops('check_is_msg_under_planning_phase', [extracted, update, context])
     status = ret_status[0]
     current_batch = ret_status[1]
+    if status == 'no_batches_currently':
+        print('no batches')
+        return
     if status == 'during_planning_phase':
         #  get the return valid / invalid status then send message for each
         is_success_status = await  execution.msg_process(msg_date, update, context, current_batch)
@@ -254,7 +258,7 @@ async def check_msg(msg_date, update, context):
 
 async def grp_msg(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     print(
-        f'args:{update.message.text} user: name: {update.message.from_user.username} id:{update.message.from_user.id}')
+        f'args:{update.message.text} user: name: {update.message.from_user.username} id:{update.message.from_user.id}\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx')
     current_id = update.message.chat.id
     if zero_dev_grp_id == current_id:
         is_user_updated = await db_management.dbops('update_dev_detail_if_found',
@@ -265,7 +269,16 @@ async def grp_msg(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         else:
             print('not found in db')
 
-        #  check mention working or not
+        if update.message.text == 'clear_all':
+            await schedule_py.lets_clean_all(context, update)
+            return
+        if update.message.text == 'attention_msg':
+            await schedule_py.attention_msgs(context)
+            return
+
+        if update.message.text == 'daily_update':
+            await schedule_py.daily_update(context)
+            return
         if update.message.text == 'mention':
             chat_id = update.effective_chat.id
 
@@ -405,7 +418,7 @@ async def finished_project(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     date = date[:10]
     sanitized_date = int(f'{date}'.replace('-', ''))
     print(f'date : {date} sani : {sanitized_date}')
-    status = await db_management.dbops('check_is_msg_under_planning_phase', sanitized_date)
+    status = await db_management.dbops('check_is_msg_under_planning_phase', [sanitized_date,update,context])
 
     if status[0] == 'no_batches_currently':
         print('no batch')
