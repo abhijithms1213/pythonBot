@@ -169,7 +169,7 @@ async def addnewbatch(args, cursor):
     context: ContextTypes.DEFAULT_TYPE = args[2]
 
     sanitizedDate = int(f'{date}'.replace('-', ''))
-    status = await check_msg([sanitizedDate,update,context], cursor)
+    status = await check_msg([sanitizedDate, update, context], cursor)
     if status[0] == 'no_batches_currently':
         print(f'date is checking {sanitizedDate}\n')
         cursor.execute(f'''
@@ -449,12 +449,18 @@ async def add_to_team(args, cursor):
     isBreaked = False
     imposter: str = ''
     for dev in devs_id:
-        print(f'devs ids passed to add team:{type(dev)}')
+        print(f'devs ids passed to add team:{type(dev)} dev: {dev}')
         # circle through each dev's if any dev already joined in team we break entirely ,
         # because if a new user need to be added to this group we're already providing 'add' command
-        query = f'''
-            select * from devs where tele_id = '{dev}';
+        if not isinstance(dev, int) and dev.startswith('@'):
+            print(f'inclu: {dev}')
+            query = f'''
+            select * from devs where user_name = '{dev}';
             '''
+        else:
+            query = f'''
+                select * from devs where tele_id = '{dev}';
+                '''
         cursor.execute(query)
         result: list = cursor.fetchone()
         print(f'result is non or xxxx:   {result}')
@@ -476,8 +482,8 @@ async def add_to_team(args, cursor):
     else:
         if coming_deadline > batch_deadline:  # eg: 14 deadline > 11 current batch's deadline
             print('found deadline is greater than batch')
-            updated_deadline = await dbops('update_deadline_of_batch',
-                                           [coming_deadline, start])
+            updated_deadline = await update_deadline_of_batch(
+                [coming_deadline, start], cursor)
             print(f'updated deadline {updated_deadline}')
             if not updated_deadline:
                 print('not updated any issues?')
@@ -1251,7 +1257,8 @@ async def update_dev_detail_if_found(args, cursor):
     fullname = chat_usr.full_name
     user_name = chat_usr.username
     include_user_name = f'@{user_name}'
-    print(f'user id : {user_id} type:{type(user_id)} name is {user_name} and include: {include_user_name}, first: {first_name},full : {fullname}')
+    print(
+        f'user id : {user_id} type:{type(user_id)} name is {user_name} and include: {include_user_name}, first: {first_name},full : {fullname}')
 
     query = f'''
     select * from devs where tele_id = '{user_id}';

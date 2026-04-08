@@ -70,7 +70,7 @@ print(district)
 
 
 async def batch_creates(date, context, update):
-    status = await db_management.dbops('check_batch', [date,update,context])
+    status = await db_management.dbops('check_batch', [date, update, context])
     if status == 'added_new_batch':
         await  context.bot.send_message(chat_id=update.message.chat_id,
                                         text='remember not start a batch on month ends , need 2 day gap')
@@ -95,10 +95,17 @@ async def check_msg(msg_date, update, context):
         is_success_status = await  execution.msg_process(msg_date, update, context, current_batch)
         if isinstance(is_success_status, list):
             if is_success_status[0] == 'error_user_exist':
-                print(f'exist member {is_success_status[1]} is string {type(is_success_status[1])}')
+                user = is_success_status[1]
+
+                if isinstance(user, str) and user.startswith("@"):
+                    user_tag = user
+                else:
+                    user_tag = f'<a href="tg://user?id={user}">dev</a>'
+
                 message = f"""
-                an imposter found, <a href="tg://user?id={is_success_status[1]}">unknown_user</a>'s already exist in another grp,\nSo ignoring
-                """
+            An imposter found, {user_tag} is already in another group,
+            so ignoring.
+            """
 
                 await update.effective_message.reply_text(
                     message,
@@ -418,7 +425,7 @@ async def finished_project(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     date = date[:10]
     sanitized_date = int(f'{date}'.replace('-', ''))
     print(f'date : {date} sani : {sanitized_date}')
-    status = await db_management.dbops('check_is_msg_under_planning_phase', [sanitized_date,update,context])
+    status = await db_management.dbops('check_is_msg_under_planning_phase', [sanitized_date, update, context])
 
     if status[0] == 'no_batches_currently':
         print('no batch')
