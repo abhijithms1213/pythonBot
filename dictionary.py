@@ -85,7 +85,8 @@ async def check_msg(msg_date, update, context):
     # print(f"[INFO] msg date extracted: {date_only}")
 
     extracted = int(date_only.replace('-', ''))
-    extracted = 20260409  # override for testing
+    extracted = 20260411  # override for testing
+    print(f' extracted date: {extracted}')
 
     ret_status = await db_management.dbops(
         'check_is_msg_under_planning_phase',
@@ -449,8 +450,9 @@ async def grp_msg(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         f'args:{update.message.text} user: name: {update.message.from_user.username} id:{update.message.from_user.id}\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx')
     current_id = update.message.chat.id
     if zero_dev_grp_id == current_id:
+        chat_usr = await context.bot.get_chat(chat_id=update.message.from_user.id)
         is_user_updated = await db_management.dbops('update_dev_detail_if_found',
-                                                    [update.message.from_user.id, context])
+                                                    [update.message.from_user.id, chat_usr])
         user_status = is_user_updated[0]
         if user_status:
             print(f'found user didnt updated @ , now updated {is_user_updated[1]}')
@@ -603,7 +605,8 @@ async def finished_project(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     date = str(update.message.date)
     date = date[:10]
     sanitized_date = int(f'{date}'.replace('-', ''))
-    print(f'date : {date} sani : {sanitized_date}')
+    # sanitized_date = 20260416  # override for testing
+    # print(f'date : {date} sani : {sanitized_date}')
     status = await db_management.dbops('check_is_msg_under_planning_phase', [sanitized_date, update, context])
 
     if status[0] == 'no_batches_currently':
@@ -626,7 +629,7 @@ async def finished_project(update: Update, context: ContextTypes.DEFAULT_TYPE) -
                     if not ext_bool:  # means dev not from prev batches user, means: old user ok with new batch ,
                         print('not work')
                     else:
-                        user, is_finished, team_id, streak, total_points = await db_management.dbops(
+                        user, is_finished, team_id, streak, total_points, user_name = await db_management.dbops(
                             'check_is_user_already_exist_in_user_db',
                             update.message.from_user.id)
                         if user:
@@ -635,7 +638,7 @@ async def finished_project(update: Update, context: ContextTypes.DEFAULT_TYPE) -
                                 print('not finished i found')
                                 status = await db_management.dbops('updating_user_project_finish_and_clean_up',
                                                                    [update.message.from_user.id, team_id, streak,
-                                                                    total_points])
+                                                                    total_points, user_name])
                                 if status:
                                     print("updated your status and also team isFinished true")
                                 else:
@@ -665,7 +668,7 @@ async def finished_project(update: Update, context: ContextTypes.DEFAULT_TYPE) -
                     if not ext_bool:  # means dev not from prev batches user, means: old user ok with new batch ,
                         print('not work')
                     else:
-                        user, is_finished, team_id, streak, total_points = await db_management.dbops(
+                        user, is_finished, team_id, streak, total_points, user_name = await db_management.dbops(
                             'check_is_user_already_exist_in_user_db',
                             update.message.from_user.id)
                         if user:
@@ -674,7 +677,7 @@ async def finished_project(update: Update, context: ContextTypes.DEFAULT_TYPE) -
                                 print('not finished i found')
                                 status = await db_management.dbops('updating_user_project_finish_and_clean_up',
                                                                    [update.message.from_user.id, team_id, streak,
-                                                                    total_points])
+                                                                    total_points, user_name])
                                 if status:
                                     print("updated your status and also team isFinished true")
                                 else:
@@ -686,19 +689,20 @@ async def finished_project(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
     elif status[0] == 'during_project_phase':
         print('project')
-        user, is_finished, team_id, streak, total_points = await db_management.dbops(
+        user, is_finished, team_id, streak, total_points, user_name = await db_management.dbops(
             'check_is_user_already_exist_in_user_db',
             update.message.from_user.id)
         if user:
             if not is_finished:
                 print(f'found user {user} fini_status: {is_finished} team:{team_id}')
-                print('not finished i found')
+                print('not finished so we are going to update')
                 status = await db_management.dbops('updating_user_project_finish_and_clean_up',
-                                                   [update.message.from_user.id, team_id, streak, total_points])
+                                                   [update.message.from_user.id, team_id, streak, total_points,
+                                                    user_name])
                 if status:
                     print("updated your status and also team isFinished true")
                 else:
-                    print('not updated teams isFinish but user update done')
+                    print('not updated teams but user update done')
             else:
                 print('already u finished before')
         else:

@@ -527,7 +527,7 @@ async def check_is_user_already_exist_in_user_db(args, cursor):
                 return None
     else:
         query = f'''
-        select tele_id,isFinished,team_id,streak,total_points from devs where tele_id = '{user_id}';
+        select tele_id,isFinished,team_id,streak,total_points,user_name from devs where tele_id = '{user_id}';
         '''
 
         cursor.execute(query)
@@ -541,7 +541,7 @@ async def check_is_user_already_exist_in_user_db(args, cursor):
             user_id_from_db: str = result[0]
 
             if user_id_from_db[0].isdigit():
-                return user_id_from_db[0], result[0][1], result[0][2], result[0][3], result[0][4]
+                return user_id_from_db[0], result[0][1], result[0][2], result[0][3], result[0][4], result[0][5]
             else:
                 return None
 
@@ -872,6 +872,7 @@ async def updating_user_project_finish_and_clean_up(args, cursor):
     team_id = args[1]
     streak = args[2]
     total_points = args[3]
+    user_name = args[4]
 
     # batch_id, team_id, dev_count, isExtended, ExtDate, start, end, deadline_as_date, isFinished, topic, repository, tech_stack, team_name = cursor.execute(
     #     "SELECT * FROM teams WHERE team_id=?", (team_id,)).fetchone()
@@ -899,8 +900,9 @@ async def updating_user_project_finish_and_clean_up(args, cursor):
         repository,
         tech_stack,
         team_name,
-        total_points
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        total_points,
+        u_name
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         user_id,
         batch_id,
@@ -914,14 +916,16 @@ async def updating_user_project_finish_and_clean_up(args, cursor):
         repository,
         tech_stack,
         team_name,
-        total_points
+        total_points,
+        user_name
     ))
     # result = cursor.fetchall()
     # print(f'history: {result}')
 
     # update user's team id and batch as empty and also updates Finished as 1
+    # UPDATE devs SET batch_id = NULL, team_id = NULL,isFinished = 1 WHERE tele_id = ?
     cursor.execute("""
-    UPDATE devs SET batch_id = NULL, team_id = NULL,isFinished = 1 WHERE tele_id = ?
+    UPDATE devs SET isFinished = 1 WHERE tele_id = ?
     """, (user_id,))
 
     # team update if every devs isFinished True, else if any dev is False then continue
@@ -1108,7 +1112,7 @@ async def get_one_dev_details(args, cursor):
     result = cursor.fetchall()
 
     if not result:
-        print('false as not found record so adding fresh user')
+        print('false as not found')
         return [False, []]
     else:
         return [True, result]
