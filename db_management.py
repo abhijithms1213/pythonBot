@@ -1,5 +1,6 @@
 import re
 import sqlite3
+import time
 from datetime import datetime, timedelta
 
 from telegram import Update
@@ -739,7 +740,7 @@ async def add_activity_msg_first_entry_today(args, cursor):
     else:  # already activity written today ,so doc found
         # fetch already occuring MsgLength and sum up if sum > 20 then we will make Activity as 1 else only update msg length
         query = f'''
-                  select Activity,MsgLen from daily_logs where tele_id = {user_id} and Date = {msg_date};
+                  select Activity,MsgLen from daily_logs where tele_id = '{user_id}' and Date = {msg_date};
               '''
 
         cursor.execute(query)
@@ -752,12 +753,12 @@ async def add_activity_msg_first_entry_today(args, cursor):
             msg_added_length = msg_length_from_db + msg_len  # adding length from db with current msg length
             if msg_added_length > 20:
                 query = f'''
-                    update daily_logs set Activity = 1,MsgLen= {msg_added_length} where tele_id = {user_id} and Date = {msg_date};
+                    update daily_logs set Activity = 1,MsgLen= {msg_added_length} where tele_id = '{user_id}' and Date = {msg_date};
                 '''
 
                 cursor.execute(query)
                 query = f'''
-                    select Activity from daily_logs where tele_id = {user_id};
+                    select Activity from daily_logs where tele_id = '{user_id}';
                 '''
                 cursor.execute(query)
                 result = cursor.fetchone()
@@ -766,7 +767,6 @@ async def add_activity_msg_first_entry_today(args, cursor):
                     point = await update_daily_point(
                         [1, user_id, user_name, team_id, point_earned,
                          msg_date], cursor)  # 1 means it's for update
-                    return True
                 else:
                     return False
             else:
@@ -793,6 +793,7 @@ async def update_daily_point(args, cursor):
     point_earned = args[4]
 
     print(f'point earned got in update daily:{point_earned}')
+    print(f'current up var : {current_updated_var}')
     if isinstance(point_earned, tuple):
         point_earned = point_earned[0]
     elif isinstance(point_earned, list):
@@ -814,6 +815,7 @@ async def update_daily_point(args, cursor):
         print('update:')
         if deadline == 14:
             # point add is 2
+            print(f'points: {point_earned} and earned')
             point = point_earned + 2
         elif deadline == 17:
             # point add is 2
@@ -823,10 +825,12 @@ async def update_daily_point(args, cursor):
             point = point_earned + 1
         else:
             print('false')
-    else:
+    elif current_updated_var == 1:  # from activity
         print('activity:')
         if deadline == 14:
             # point add is 2
+
+            print(f'points: {point_earned} and earned in activity')
             point = point_earned + 2
         elif deadline == 17:
             # point add is 1
@@ -844,7 +848,7 @@ async def update_daily_point(args, cursor):
     cursor.execute(query)
     result = cursor.fetchall()
     print(f'rss in update : {result}')
-    return
+    return True
 
 
 async def fetch_daily_log(args, cursor):
@@ -1199,8 +1203,9 @@ async def update_dev_points_and_cycle(args, cursor):
 
 async def update_dev_detail_if_found(args, cursor):
     user_id = args[0]
-    context: ContextTypes.DEFAULT_TYPE = args[1]
-    chat_usr = await context.bot.get_chat(chat_id=user_id)
+    chat_usr = args[1]
+    # context: ContextTypes.DEFAULT_TYPE = args[1]
+    # chat_usr = await context.bot.get_chat(chat_id=user_id)
     first_name = chat_usr.first_name
     fullname = chat_usr.full_name
     user_name = chat_usr.username
@@ -1235,7 +1240,8 @@ async def update_dev_detail_if_found(args, cursor):
                 query = f'''
                            select * from devs where tele_id = '{user_id}';
                       '''
-                result = cursor.execute(query)
+                cursor.execute(query)
+                result = cursor.fetchall()  # or fetchone()
                 print(f'user updating , succefully ')
                 return [True, result]
             else:
@@ -1303,7 +1309,7 @@ async def dbops(operation, args):
         if operation == 'get_one_dev_details':
             return await get_one_dev_details(args, cursor)
         if operation == 'update_deadline_of_batch':
-            return  await update_deadline_of_batch(args, cursor)
+            return await update_deadline_of_batch(args, cursor)
         if operation == 'dev_extend_deadline':
             return await dev_extend_deadline(args, cursor)
         if operation == 'update_dev_detail_if_found':
@@ -1340,8 +1346,10 @@ async def dbops(operation, args):
         if operation == 'get_log_combined_for_week_update':
             return await get_log_combined_for_week_update(args, cursor)
 
-    except sqlite3.Error as error:
-        print(f'error is : {error}')
+
+    except Exception as e:
+        print(f"[DB ERROR] {operation} → {e}")
+        raise
 
     finally:
         if connect:

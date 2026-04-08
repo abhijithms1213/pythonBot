@@ -201,8 +201,44 @@ async def lets_clean_all(context: ContextTypes.DEFAULT_TYPE, update: Update):
         return [None, '']
 
 
-def attention_msgs():
-    print('attention')
+async def attention_msgs(context):
+    batch = await db_management.dbops('get_current_batch', '')
+    if not batch:
+        print("No active batch")
+        return
+    # unpack (based on your schema)
+    planning_date = batch[1]
+    deadline_days = batch[3]
+    deadline_as_date = batch[5]
+    project_start = batch[6]
+
+    today = datetime.now().date()
+    today_as_int = int(today.strftime("%Y%m%d"))
+
+    tomorrow_as_int = int((today + timedelta(days=1)).strftime("%Y%m%d"))
+
+    print(f"📅 Today: {today_as_int}")
+
+    # 🔔 1. Before planning ends (1 day before)
+    if tomorrow_as_int == planning_date:
+        await context.bot.send_message(
+            chat_id='',
+            text="⚠️ Planning phase ends tomorrow. Get ready!"
+        )
+
+    # 🚀 2. Project start day
+    if today_as_int == project_start:
+        await context.bot.send_message(
+            chat_id='YOUR_GROUP_ID',
+            text="🚀 Project starts today! Let's go!"
+        )
+
+    # ⏳ 3. Before deadline (1 day before)
+    if tomorrow_as_int == deadline_as_date:
+        await context.bot.send_message(
+            chat_id='YOUR_GROUP_ID',
+            text="⏳ Deadline is tomorrow! Final push!"
+        )
 
 
 async def weekly_report(context: ContextTypes.DEFAULT_TYPE):
