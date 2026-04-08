@@ -85,7 +85,7 @@ async def check_msg(msg_date, update, context):
     # print(f"[INFO] msg date extracted: {date_only}")
 
     extracted = int(date_only.replace('-', ''))
-    extracted = 20260422  # override for testing
+    extracted = 20260409  # override for testing
     print(f' extracted date: {extracted}')
 
     ret_status = await db_management.dbops(
@@ -128,8 +128,6 @@ async def check_msg(msg_date, update, context):
         if not team_details:
             print("[ERROR] Invalid team reference")
             return
-
-        print(f"[DEBUG] Team details: {team_details}")
 
         ext_bool = team_details[3]
 
@@ -185,32 +183,37 @@ async def check_msg(msg_date, update, context):
                 )
 
                 if team_details:
-                    ext_bool = team_details[3]
 
-                    if ext_bool:
-                        ext_date = team_details[4]
-                        today = int(datetime.now().strftime("%Y%m%d"))
+                    print(f'team detail:{team_details} and batch is {current_batch}')
+                    team_batch_id = team_details[0]
+                    current_batch_id = current_batch[0]
+                    if team_batch_id != current_batch_id:  # if this dev is from prev batch then not equal
+                        ext_bool = team_details[3]
 
-                        print(f"[DEBUG] ext_date: {ext_date}, today: {today}")
+                        if ext_bool:
+                            ext_date = team_details[4]
+                            today = int(datetime.now().strftime("%Y%m%d"))
 
-                        if ext_date >= today:
-                            print("[INFO] Updating extended dev log...")
+                            print(f"[DEBUG] ext_date: {ext_date}, today: {today}")
 
-                            result = helpers_py.update_for_extended_devs(
-                                msg_date,
-                                update,
-                                dev_data[5],
-                                dev_data[1]
-                            )
+                            if ext_date >= today:
+                                print("[INFO] Updating extended dev log...")
 
-                            if result:
-                                print("[SUCCESS] Extended update done")
-                                extended_handled = True
+                                result = helpers_py.update_for_extended_devs(
+                                    msg_date,
+                                    update,
+                                    dev_data[5],
+                                    dev_data[1]
+                                )
+
+                                if result:
+                                    print("[SUCCESS] Extended update done")
+                                    extended_handled = True
+                                else:
+                                    print("[ERROR] Extended update failed")
+
                             else:
-                                print("[ERROR] Extended update failed")
-
-                        else:
-                            print("[WARN] Extended deadline over")
+                                print("[WARN] Extended deadline over")
 
         # 🔥 IMPORTANT: Continue normal flow if NOT handled
         if not extended_handled:
@@ -401,32 +404,34 @@ async def check_msg(msg_date, update, context):
                 )
 
                 if team_details:
-                    ext_bool = team_details[3]
+                    team_batch_id = team_details[0]
+                    current_batch_id = current_batch[0]
+                    if team_batch_id != current_batch_id:  # if this dev is from prev batch then not equal
+                        ext_bool = team_details[3]
+                        if ext_bool:
+                            ext_date = team_details[4]
+                            today = int(datetime.now().strftime("%Y%m%d"))
 
-                    if ext_bool:
-                        ext_date = team_details[4]
-                        today = int(datetime.now().strftime("%Y%m%d"))
+                            print(f"[DEBUG] ext_date: {ext_date}, today: {today}")
 
-                        print(f"[DEBUG] ext_date: {ext_date}, today: {today}")
+                            if ext_date >= today:
+                                print("[INFO] Updating extended dev log...")
 
-                        if ext_date >= today:
-                            print("[INFO] Updating extended dev log...")
+                                result = helpers_py.update_for_extended_devs(
+                                    msg_date,
+                                    update,
+                                    dev_data[5],
+                                    dev_data[1]
+                                )
 
-                            result = helpers_py.update_for_extended_devs(
-                                msg_date,
-                                update,
-                                dev_data[5],
-                                dev_data[1]
-                            )
+                                if result:
+                                    print("[SUCCESS] Extended update done")
+                                    extended_handled = True
+                                else:
+                                    print("[ERROR] Extended update failed")
 
-                            if result:
-                                print("[SUCCESS] Extended update done")
-                                extended_handled = True
                             else:
-                                print("[ERROR] Extended update failed")
-
-                        else:
-                            print("[WARN] Extended deadline over")
+                                print("[WARN] Extended deadline over")
 
         # 🔥 IMPORTANT: Continue normal flow if NOT handled
         if not extended_handled:
@@ -447,6 +452,8 @@ async def check_msg(msg_date, update, context):
             else:
                 print('not found this user in db')
                 return
+        else:
+            print('update done dev from not this batch')
 
 
 async def grp_msg(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -461,6 +468,10 @@ async def grp_msg(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if user_status:
             print(f'found user didnt updated @ , now updated {is_user_updated[1]}')
 
+        if update.message.text == 'weekly_report':
+            print('weekly report called')
+            await schedule_py.weekly_report(context)
+            return
         if update.message.text == 'clear_all':
             await schedule_py.lets_clean_all(context, update)
             return

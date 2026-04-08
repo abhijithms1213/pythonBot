@@ -13,6 +13,8 @@ import db_management
 
 from datetime import datetime, timedelta
 
+zero_dev_grp_id = -5287913183
+
 from telegram.constants import MessageEntityType
 
 
@@ -44,11 +46,15 @@ from telegram.constants import MessageEntityType
 #     else:
 #         print('msg not under any')
 #         return [None, '']
-async def process_weekly_report(start_as_int, first_week_as_int):
+async def process_weekly_report(first_as_int, second_as_int, is_from_between: bool = None):
+    if not is_from_between:
+        empty = ''
+    else:
+        empty = '17d'
     # 🔹 Step 1: Get logs
     get_ret = await db_management.dbops(
         'get_log_combined_for_week_update',
-        [start_as_int, first_week_as_int, '']
+        [first_as_int, second_as_int, empty]
     )
 
     if not get_ret:
@@ -248,7 +254,7 @@ async def weekly_report(context: ContextTypes.DEFAULT_TYPE):
     print(f'{getstatus}')
     # today
     today = datetime.now().date()
-    today = datetime.now().date() + timedelta(days=1)
+    today = datetime.now().date() + timedelta(days=9)
 
     today_as_int = int(today.strftime("%Y%m%d"))
     start = getstatus[6]  # start date
@@ -266,14 +272,31 @@ async def weekly_report(context: ContextTypes.DEFAULT_TYPE):
     second_week = second_week.date()
     second_week_as_int = int(second_week.strftime("%Y%m%d"))
 
-    second_third_week_for_d_17 = second_week + timedelta(3)
+    second_third_week_for_d_17 = second_week + timedelta(4)
     second_third_week_as_int = int(second_third_week_for_d_17.strftime("%Y%m%d"))
 
-    third_week = second_week + timedelta(6)
+    third_week = second_week + timedelta(7)
     third_week_as_int = int(third_week.strftime("%Y%m%d"))
 
     fourth_week = third_week + timedelta(6)
     fourth_week_as_int = int(fourth_week.strftime("%Y%m%d"))
+
+    print("\n📅 ===== WEEKLY REPORT DEBUG =====")
+
+    print(f"🟢 Today          : {today} ({today.strftime('%A')}) | int: {today_as_int}")
+
+    print("\n📌 Batch Info")
+    print(f"Start Date        : {start_as_formate.date()} | int: {start_as_int}")
+    print(f"Deadline (days)   : {deadline}")
+
+    print("\n📊 Week Boundaries")
+    print(f"Week 1 End        : {first_week} | int: {first_week_as_int}")
+    print(f"Week 2 End        : {second_week} | int: {second_week_as_int}")
+    print(f"Week 2.5 (17d)    : {second_third_week_for_d_17} | int: {second_third_week_as_int}")
+    print(f"Week 3 End        : {third_week} | int: {third_week_as_int}")
+    print(f"Week 4 End        : {fourth_week} | int: {fourth_week_as_int}")
+
+    print("=================================\n")
 
     if getstatus is None:
         print('no running batches')
@@ -281,11 +304,32 @@ async def weekly_report(context: ContextTypes.DEFAULT_TYPE):
     elif getstatus[6] <= today_as_int <= getstatus[5]:  # 5 is deadline as whole numbers, 6 is project starts
         print('report is reco as project phase')
 
-        print(
-            f'today {today} and day {today.strftime("%A")}, first week {first_week} ,and start: {start_as_formate},deadline {deadline}')
+        # print(
+        #     f'today {today} and day {today.strftime("%A")}, first week {first_week} ,and start: {start_as_formate},deadline {deadline}')
 
         if today == first_week:  # if starts 03-01 , then today == 03-07 is saturday
-            print('worked first sunday')
+            print(f'worked second, {second_week}')
+            # 🔥 subtract 1 day
+            end_date = first_week - timedelta(days=1)
+            end_date_as_int = int(end_date.strftime("%Y%m%d"))
+
+            report = await process_weekly_report(
+                start_as_int,
+                end_date_as_int
+            )
+
+            if report == 'no_records':
+                await context.bot.send_message(
+                    # chat_id=update.effective_chat.id,
+                    chat_id=zero_dev_grp_id,
+                    text="⚠️ No records for this week"
+                )
+                return 0
+            await context.bot.send_message(
+                chat_id=zero_dev_grp_id,
+                text=report,
+                parse_mode='HTML'
+            )
             # get_ret = await  db_management.dbops('get_log_combined_for_week_update',
             #                                      [start_as_int, first_week_as_int, ''])
             # if not get_ret:
@@ -342,17 +386,24 @@ async def weekly_report(context: ContextTypes.DEFAULT_TYPE):
 
         elif today == second_week:
             print(f'worked second, {second_week}')
-            report = await process_weekly_report(first_week_as_int, second_week_as_int)
+
+            end_date = second_week - timedelta(days=1)
+            end_date_as_int = int(end_date.strftime("%Y%m%d"))
+
+            report = await process_weekly_report(
+                first_week_as_int,
+                end_date_as_int
+            )
 
             if report == 'no_records':
                 await context.bot.send_message(
                     # chat_id=update.effective_chat.id,
-                    chat_id=12,
+                    chat_id=zero_dev_grp_id,
                     text="⚠️ No records for this week"
                 )
                 return 0
             await context.bot.send_message(
-                chat_id=12,
+                chat_id=zero_dev_grp_id,
                 text=report,
                 parse_mode='HTML'
             )
@@ -360,36 +411,76 @@ async def weekly_report(context: ContextTypes.DEFAULT_TYPE):
         elif today == second_third_week_for_d_17:  # for 17 days deadline devs only
             #  here send second_week , end as +4 from second week, so 5th day from 2nd week is elif need to work
             print(f'worked 3rd middle {second_third_week_for_d_17} ')
-            get_ret = await  db_management.dbops('get_log_combined_for_week_update',
-                                                 [second_week_as_int, second_third_week_as_int, '17d'])
-            if not get_ret:
-                return 'no_records'
-            else:
-                print('i got')
+            end_date = second_third_week_for_d_17 - timedelta(days=1)
+            end_date_as_int = int(end_date.strftime("%Y%m%d"))
+            report = await process_weekly_report(
+                first_week_as_int,
+                end_date_as_int, True
+            )
+            if report == 'no_records':
+                await context.bot.send_message(
+                    # chat_id=update.effective_chat.id,
+                    chat_id=zero_dev_grp_id,
+                    text="⚠️ No records for this week"
+                )
+                return 0
+            await context.bot.send_message(
+                chat_id=zero_dev_grp_id,
+                text=report,
+                parse_mode='HTML'
+            )
+
         elif today == third_week:
             # here same like deadline = 17's third week : means: end as +4 and 5th day is send weekly report as replace that fourth_week
             print(f'worked 3rd pure sunday {third_week}')
-            get_ret = await  db_management.dbops('get_log_combined_for_week_update',
-                                                 [second_week_as_int, third_week_as_int, ''])
-            if not get_ret:
-                return 'no_records'
-            else:
-                print('i got')
+            end_date = third_week - timedelta(days=1)
+            end_date_as_int = int(end_date.strftime("%Y%m%d"))
+
+            report = await process_weekly_report(
+                second_week_as_int,
+                end_date_as_int, True
+            )
+            if report == 'no_records':
+                await context.bot.send_message(
+                    # chat_id=update.effective_chat.id,
+                    chat_id=zero_dev_grp_id,
+                    text="⚠️ No records for this week"
+                )
+                return 0
+            await context.bot.send_message(
+                chat_id=zero_dev_grp_id,
+                text=report,
+                parse_mode='HTML'
+            )
+
         elif today == fourth_week:
+            end_date = fourth_week - timedelta(days=1)
+            end_date_as_int = int(end_date.strftime("%Y%m%d"))
             # here same like deadline = 17's third week : means: end as +4 and 5th day is send weekly report as replace that fourth_week
             print(f'worked fourth sunday {fourth_week}')
-            get_ret = await  db_management.dbops('get_log_combined_for_week_update',
-                                                 [third_week_as_int, fourth_week_as_int, ''])
-            if not get_ret:
-                return 'no_records'
-            else:
-                print('i got')
+            report = await process_weekly_report(
+                third_week_as_int,
+                end_date_as_int, True
+            )
+            if report == 'no_records':
+                await context.bot.send_message(
+                    # chat_id=update.effective_chat.id,
+                    chat_id=zero_dev_grp_id,
+                    text="⚠️ No records for this week"
+                )
+                return 0
+            await context.bot.send_message(
+                chat_id=zero_dev_grp_id,
+                text=report,
+                parse_mode='HTML'
+            )
+
         else:
             print('not reco date')
 
         return ['during_project_phase', getstatus]
     else:
-        print('msg not under any')
+        print('not reco the date')
         return [None, '']
 
 
@@ -403,6 +494,7 @@ async def daily_update(context: ContextTypes.DEFAULT_TYPE):
     print(f'yest : {yesterday}')
     today_as_int = int(today.strftime("%Y%m%d"))
     yesterday_as_int = int(yesterday.strftime("%Y%m%d"))
+    yesterday_as_int = 20260422  # testing purpose
     print(f'day as str {today_as_int} yes :{yesterday_as_int}')
 
     if getstatus is None:
@@ -423,46 +515,55 @@ async def daily_update(context: ContextTypes.DEFAULT_TYPE):
 
             grouped = defaultdict(lambda: defaultdict(list))
 
+            # 🔹 Group data
             for log in daily_logs:
                 activity_status = log[0]
                 update_status = log[1]
                 tele_id = log[2]
                 tele_username = log[3]
-                team_name = log[4]
+                first_name = log[4]  # ✅ NEW
+                team_name = log[5]  # ✅ FIXED
                 team_deadline = log[6]
-                point = log[8]
+                point = log[9]  # ✅ FIXED
 
                 grouped[team_deadline][team_name].append({
-                    "user": tele_username,
+                    "tele_id": tele_id,
+                    "name": log[4],  # full name
                     "activity": activity_status,
                     "update": update_status,
-                    "point": point
+                    "point": log[9]
                 })
-                message = "📊 <b>Daily Report</b>\n\n"
 
-                for deadline in sorted(grouped.keys()):
-                    message += f"⏰ <b>Deadline: {deadline}</b>\n"
+            # 🔹 Build message
+            message = "📊 <b>Daily Report</b>\n\n"
 
-                    for team in grouped[deadline]:
-                        message += f"\n📌 <b>Team: {team}</b>\n"
+            for deadline in sorted(grouped.keys()):
+                for team in grouped[deadline]:
 
-                        for user in grouped[deadline][team]:
-                            status = "✅" if user["update"] == 1 else "❌"
+                    # 🔥 Format date
+                    formatted_deadline = f"{str(deadline)[:4]}-{str(deadline)[4:6]}-{str(deadline)[6:]}"
 
-                            message += (
-                                f"  👤 {user['user']} | "
-                                f"Update: {status} | "
-                                f"Pts: {user['point']}\n"
-                            )
+                    message += f"📌 <b>Team: {team}</b>\n"
+                    message += f"⏰ Deadline: <b>{formatted_deadline}</b>\n\n"
+
+                    for user in grouped[deadline][team]:
+                        status = "✅" if user["update"] == 1 else "❌"
+
+                        user_tag = f'<a href="tg://user?id={user["tele_id"]}">{user["name"]}</a>'
+
+                        message += (
+                            f"👤 {user_tag} | "
+                            f"Update: {status} | "
+                            f"Pts: {user['point']}\n"
+                        )
 
                     message += "\n"
-
-                zero_dev_grp_id = -5287913183
-                await context.bot.send_message(
-                    chat_id=zero_dev_grp_id,
-                    text=message,
-                    parse_mode="HTML"
-                )
+            # 🔹 Send once
+            await context.bot.send_message(
+                chat_id=zero_dev_grp_id,
+                text=message,
+                parse_mode="HTML"
+            )
 
     else:
         print('msg not under any')
