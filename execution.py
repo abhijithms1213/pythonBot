@@ -228,10 +228,8 @@ async def msg_process(msg_date, update: Update, context: ContextTypes.DEFAULT_TY
 
 
 async def project_phase(msg_date, update: Update, context: ContextTypes.DEFAULT_TYPE, current_batch):
-    date_to_string = str(msg_date)
-    date_only = date_to_string[:10]
-    sanitized_date = int(date_only.replace('-', ''))
-    print(f'msg date: {date_only} and sanitized :{sanitized_date}')
+    sanitized_date = msg_date
+    print(f'msg date: {msg_date}')
 
     # don't forget to replace below
     # sanitized_date = 20260411

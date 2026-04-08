@@ -61,7 +61,7 @@ async def check_team_under_batch(args, cursor):
     # checks is user found in this batch
     cursor.execute(query)
     result = cursor.fetchall()
-    print(f'check team under and from raw user is :{result} and query: {query}')
+    # print(f'check team under and from raw user is :{result} and query: {query}')
     if result is None or not result:
         return None
     else:
@@ -89,74 +89,22 @@ async def check_msg(args, cursor):
     getstatus = check_any_batches_running(cursor)
     print(f'status: {getstatus} and msg date: {msg_date}')
     if getstatus is None:
-        dev_details = await get_one_dev_details([update.message.from_user.id], cursor)
-        if not dev_details[0]:
-            return ['no_batches_currently', '']
-        else:
-            dev_data = dev_details[1][0]
-            if not dev_data[5]:  # get team id
-                return ['no_batches_currently', '']
-            else:
-                team_details = await get_team_details_based_team_id([dev_data[5]], cursor)
-                if not team_details:
-                    return ['invalid_team_ref', '']
-                else:
-                    ext_bool = team_details[3]
-                    if not ext_bool:  # means dev not from prev batches user, means: old user ok with new batch ,
-                        return ['no_batches_currently', '']
-                    else:
-                        ext_date = team_details[4]
-                        today = int(datetime.now().strftime("%Y%m%d"))
-                        if ext_date < today:  # means extended but the deadline is already ended
-                            return ['deadline_is_over_already', '']
-                        else:  # not necessary to check is Finished because if finished then already wiped from prev batch already
-                            return_value = helpers_py.update_for_extended_devs(msg_date, update, dev_data[5],
-                                                                               dev_data[1])
-                            if return_value:
-                                print('true returned')
-                                return ['added_update_to_log', '']
-                            else:
-                                print('false returned')
-                                return ['something went wrong while updating', '']
-
+        print('no running batches')
+        return ['no_batches_currently', '']
     if getstatus[0] <= msg_date and msg_date <= getstatus[1]:
         print('so its under the hood')
+        return ['during_planning_phase', getstatus]
 
-        dev_details = await get_one_dev_details([update.message.from_user.id], cursor)
-        if not dev_details[0]:
-            return ['during_planning_phase', getstatus]
-        else:
-            dev_data = dev_details[1][0]
-            if not dev_data[5]:  # get team id
-                return ['during_planning_phase', getstatus]
-            else:
-                team_details = await get_team_details_based_team_id([dev_data[5]], cursor)
-                if not team_details:
-                    return ['during_planning_phase', getstatus]
-                else:
-                    ext_bool = team_details[3]
-                    if not ext_bool:  # means dev not from prev batches user, means: old user ok with new batch ,
-                        return ['during_planning_phase', getstatus]
-                    else:
-                        ext_date = team_details[4]
-                        today = int(datetime.now().strftime("%Y%m%d"))
-                        if ext_date < today:  # means extended but the deadline is already ended
-                            return ['deadline_is_over_already', '']
-                        else:  # not necessary to check is Finished because if finished then already wiped from prev batch already
-                            return_value = helpers_py.update_for_extended_devs(msg_date, update, dev_data[5],
-                                                                               dev_data[1])
-                            if return_value:
-                                print('true returned')
-                                return ['added_update_to_log', '']
-                            else:
-                                print('false returned')
-                                return ['something went wrong while updating', '']
-
-    # elif getstatus[6] <= msg_date <= getstatus[5]:  # 5 is deadline as whole numbers
-    if getstatus[0] <= msg_date <= getstatus[5]:  # 5 is deadline as whole numbers
+    elif getstatus[6] <= msg_date <= getstatus[5]:  # 5 is deadline as whole numbers
+        # if getstatus[0] <= msg_date <= getstatus[5]:  # 5 is deadline as whole numbers
         print('its show tym')
         return ['during_project_phase', getstatus]
-
+    elif msg_date > getstatus[5]:
+        print('after deadline worked')
+        # handle if result[4] is 1
+        # check if dev extended already then ok to comment updates
+        # else don't need to record add warning 'u didn't mention during project phase'
+        return ['after_deadline', getstatus]
     else:
         print('msg not under any')
         return [None, '']
@@ -528,7 +476,7 @@ async def daily_activity_record_check_record(args, cursor):
         return result
 
 
-def update_deadline_of_batch(args, cursor):
+async def update_deadline_of_batch(args, cursor):
     new_deadline = args[0]
     batch_after_planning = args[1]
 
@@ -1288,7 +1236,7 @@ async def update_dev_detail_if_found(args, cursor):
                            select * from devs where tele_id = '{user_id}';
                       '''
                 result = cursor.execute(query)
-                print(f'user updating : {result}')
+                print(f'user updating , succefully ')
                 return [True, result]
             else:
                 print('means user name abc not found in db, so not update')
@@ -1355,7 +1303,7 @@ async def dbops(operation, args):
         if operation == 'get_one_dev_details':
             return await get_one_dev_details(args, cursor)
         if operation == 'update_deadline_of_batch':
-            return update_deadline_of_batch(args, cursor)
+            return  await update_deadline_of_batch(args, cursor)
         if operation == 'dev_extend_deadline':
             return await dev_extend_deadline(args, cursor)
         if operation == 'update_dev_detail_if_found':
