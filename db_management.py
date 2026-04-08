@@ -586,7 +586,7 @@ async def add_daily_update_in_logs(args, cursor):
                 cursor
             )
         else:
-           query = """
+            query = """
             UPDATE daily_logs 
             SET isUpdated = 1, UpdateText = ?
             WHERE tele_id = ? AND Date = ?
