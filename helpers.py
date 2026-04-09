@@ -79,7 +79,7 @@ def get_random_solo_name() -> str:
     return random.choice(SOLO_NAMES)
 
 
-async def update_for_extended_devs(msg_date, update: Update,team_id_ret,user_name_ret):
+async def update_for_extended_devs(msg_date, update: Update, team_id_ret, user_name_ret):
     # checks is user's data already here in logs with current date
     sanitized_date = msg_date
 
@@ -132,6 +132,44 @@ async def update_for_extended_devs(msg_date, update: Update,team_id_ret,user_nam
     return True
 
 
-if __name__ == '__main__':
-    asyncio.run(check_exist())
-#     await  test()
+def build_mentions(devs):
+    mentions = []
+
+    for name, uid in devs:
+        if str(uid).startswith("@"):
+            mentions.append(uid)
+        else:
+            mentions.append(f'<a href="tg://user?id={uid}">{name}</a>')
+
+    final_mentions = "\n".join(mentions)
+
+    # return " ".join(mentions)
+    return final_mentions
+
+
+def get_random_alert_solo_msg():
+    msgs = [
+        "⚠️ Hey! You missed your update today.",
+        "🚨 Reminder! You haven’t posted your update yet.",
+        "👀 Still waiting for your update...",
+        "⏳ Don’t forget to update today!",
+        "🔥 Come on, your update is pending!",
+        "📢 Your daily update is missing.",
+        "🛑 No update from you today.",
+        "💡 Quick reminder to post your update!"
+    ]
+    return random.choice(msgs)
+
+
+def get_random_alert_team_msg():
+    msgs = [
+        "⚠️ Some updates are missing today:",
+        "🚨 Attention team! Updates pending from:",
+        "👀 Waiting on updates from:",
+        "⏳ Daily updates still pending for:",
+        "📢 Team update check — missing from:",
+        "🔥 Let’s keep the streak going! Pending updates:",
+        "🛑 Update not received from:",
+        "📊 Daily report incomplete — waiting for:"
+    ]
+    return random.choice(msgs)

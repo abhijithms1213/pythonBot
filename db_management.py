@@ -177,6 +177,33 @@ async def addnewbatch(args, cursor):
         return 'running'
 
 
+async def get_missed_updates(args, cursor):
+    today_as_int = args[0]
+
+    query = """
+    SELECT 
+    d.user_firstname,
+        CASE 
+            WHEN d.tele_id LIKE '@%' THEN d.user_name
+            ELSE d.tele_id
+        END AS user_identifier
+    FROM devs d
+    WHERE d.team_id IS NOT NULL
+    AND NOT EXISTS (
+        SELECT 1
+        FROM daily_logs dl
+        WHERE dl.tele_id = d.tele_id
+        AND dl.Date = ?
+        AND dl.isUpdated = 1
+    );
+    """
+
+    cursor.execute(query, (today_as_int,))
+    result = cursor.fetchall()
+    print(f'missed devs: {result} and query: {query}')
+    return result if result else []
+
+
 def clear_batch(cursor):
     query = '''
     delete from batches;
@@ -1370,6 +1397,8 @@ async def dbops(operation, args):
             return await add_daily_update_in_logs(args, cursor)
         if operation == 'add_activity_msg_first_entry_today':
             return await add_activity_msg_first_entry_today(args, cursor)
+        if operation == 'get_missed_updates':
+            return await get_missed_updates(args, cursor)
         if operation == 'fetch_daily_log':
             return await fetch_daily_log(args, cursor)
         if operation == 'update_daily_point':
