@@ -87,7 +87,6 @@ async def update_for_extended_devs(msg_date, update: Update, team_id_ret, user_n
     user_name = update.message.chat.username
     msg = update.message.text
     msg_lower = msg.lower()
-
     is_user = await db_management.dbops('daily_activity_record_check_record', [user_id, sanitized_date])
     print(f'user :{is_user} ')
     if not is_user:

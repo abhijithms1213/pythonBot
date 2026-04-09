@@ -57,7 +57,7 @@ async def check_team_under_batch(args, cursor):
 
     # select * from teams where batch_id = {batch_id} and devs_id = '{user_id}';
     query = f'''
-    select devs.tele_id,devs.streak,devs.team_id,devs.user_name,devs.isFinished,teams.deadline_as_date,teams.isExtended,teams.ExtDate from devs join teams on (teams.team_id = devs.team_id) where devs.batch_id = {batch_id} and devs.tele_id= '{user_id}';
+    select devs.tele_id,devs.streak,devs.team_id,devs.user_name,devs.isFinished,teams.deadline_as_date,teams.isExtended,teams.ExtDate,teams.end from devs join teams on (teams.team_id = devs.team_id) where devs.batch_id = {batch_id} and devs.tele_id= '{user_id}';
     '''
     # checks is user found in this batch
     cursor.execute(query)
@@ -84,8 +84,8 @@ def check_any_batches_running(cursor):
 async def check_msg(args, cursor):
     msg_date = args[0]
     # msg_date=20260504
-    update: Update = args[1]
-    context: ContextTypes.DEFAULT_TYPE = args[2]
+    # update: Update = args[1]
+    # context: ContextTypes.DEFAULT_TYPE = args[2]
 
     getstatus = check_any_batches_running(cursor)
     print(f'status: {getstatus} and msg date: {msg_date}')
@@ -172,6 +172,14 @@ async def addnewbatch(args, cursor):
         cursor.execute('select * from batches;')
         output = cursor.fetchall()
         print(output)
+
+        # 5: Delete non-extended teams
+
+        cursor.execute("""
+            DELETE FROM teams
+            WHERE 
+                isFinished == 1
+        """)
         return 'added_new_batch'
     else:
         return 'running'
@@ -984,7 +992,7 @@ async def updating_user_project_finish_and_clean_up(args, cursor):
     # update user's team id and batch as empty and also updates Finished as 1
     # UPDATE devs SET batch_id = NULL, team_id = NULL,isFinished = 1 WHERE tele_id = ?
     cursor.execute("""
-    UPDATE devs SET isFinished = 1 WHERE tele_id = ?
+    UPDATE devs SET streak = 0,weekly_streak = 0,total_points = 0,streak_cycles = 0,isFinished = 1,batch_id = NULL, team_id = NULL WHERE tele_id = ?
     """, (user_id,))
 
     # team update if every devs isFinished True, else if any dev is False then continue
@@ -1033,7 +1041,8 @@ async def clean_up_batch_end(args, cursor):
             repository,
             tech_stack,
             team_name,
-            total_points
+            total_points,
+            u_name
         )
         SELECT 
             devs.tele_id,
@@ -1048,7 +1057,8 @@ async def clean_up_batch_end(args, cursor):
             teams.repository,
             teams.tech_stack,
             teams.team_name,
-            devs.total_points
+            devs.total_points,
+            devs.user_fullname
         FROM teams
         JOIN devs ON teams.team_id = devs.team_id
         WHERE devs.isFinished = 0

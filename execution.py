@@ -269,6 +269,7 @@ async def project_phase(msg_date, update: Update, context: ContextTypes.DEFAULT_
                     temp = new_ext_date + timedelta(days=ext_days)
                     ext_new_date = int(temp.strftime("%Y%m%d"))
                     ext_date = temp.date()
+
                     update_stat = await db_management.dbops('dev_extend_deadline',
                                                             [team_id_ret, ext_new_date])
                     if update_stat:
@@ -286,6 +287,12 @@ async def project_phase(msg_date, update: Update, context: ContextTypes.DEFAULT_
                     new_ext_date = datetime.strptime(str(sanitized_date), '%Y%m%d')
                     temp = new_ext_date + timedelta(days=ext_days)
                     ext_new_date = int(temp.strftime("%Y%m%d"))
+                    # batch_deadline_count = current_batch[3]
+                    # batch_deadline_as_date = current_batch[5]
+                    # team_deadline = status[0][8]
+                    # print(f'deadlness : {batch_deadline_count} <= batch and teams => {team_deadline} ')
+
+                    # if batch_deadline_as_date == team_deadline:
                     update_stat = await db_management.dbops('dev_extend_deadline',
                                                             [team_id_ret, ext_new_date])
                     ext_date = temp.date()

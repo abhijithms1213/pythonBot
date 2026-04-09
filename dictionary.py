@@ -242,7 +242,7 @@ async def team_decl_call(is_success_status, update: Update, context: ContextType
         return
 
 
-sanitized_date = 20260508
+sanitized_date = 20260511
 
 
 async def check_msg(msg_date, update, context):
@@ -304,12 +304,11 @@ async def check_msg(msg_date, update, context):
             return
 
         ext_date = team_details[4]
-        today = int(datetime.now().strftime("%Y%m%d"))
 
-        print(f"[DEBUG] ext_date: {ext_date}, today: {today}")
+        print(f"[DEBUG] ext_date: {ext_date}, msg_date is: {extracted}")
 
         # 🔹 Deadline passed
-        if ext_date < today:
+        if extracted > ext_date:
             print("[WARN] Deadline already over")
             return
 
@@ -359,13 +358,10 @@ async def check_msg(msg_date, update, context):
 
                         if ext_bool:
                             ext_date = team_details[4]
-                            today = int(datetime.now().strftime("%Y%m%d"))
-
-                            print(f"[DEBUG] ext_date: {ext_date}, today: {today}")
-
-                            if ext_date >= today:
+                            print(f"[DEBUG] ext_date: {ext_date}, msg_date is: {extracted}")
+                            # 🔹 Deadline passed
+                            if extracted <= ext_date:
                                 print("[INFO] Updating extended dev log...")
-
                                 result = await helpers_py.update_for_extended_devs(
                                     extracted,
                                     update,
@@ -418,11 +414,9 @@ async def check_msg(msg_date, update, context):
                         ext_bool = team_details[3]
                         if ext_bool:
                             ext_date = team_details[4]
-                            today = int(datetime.now().strftime("%Y%m%d"))
-
-                            print(f"[DEBUG] ext_date: {ext_date}, today: {today}")
-
-                            if ext_date >= today:
+                            print(f"[DEBUG] ext_date: {ext_date}, msg_date is: {extracted}")
+                            # 🔹 Deadline passed
+                            if extracted <= ext_date:
                                 print("[INFO] Updating extended dev log...")
 
                                 result = await helpers_py.update_for_extended_devs(
@@ -486,11 +480,9 @@ async def check_msg(msg_date, update, context):
                         ext_bool = team_details[3]
                         if ext_bool:
                             ext_date = team_details[4]
-                            today = int(datetime.now().strftime("%Y%m%d"))
-
-                            print(f"[DEBUG] ext_date: {ext_date}, today: {today}")
-
-                            if ext_date >= today:
+                            print(f"[DEBUG] ext_date: {ext_date}, msg_date is: {extracted}")
+                            # 🔹 Deadline passed
+                            if extracted <= ext_date:
                                 print("[INFO] Updating extended dev log...")
 
                                 result = await helpers_py.update_for_extended_devs(
@@ -629,7 +621,6 @@ async def join_grp(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         user = map_team(status_return_user)
         usr_first_name_ret = status[2]
         print('send any message about his record ')
-        await context.bot.send_message(chat_id=update.message.chat_id, text=f'already u joined , explore our group')
         await context.bot.send_message(
             chat_id=update.message.chat_id,
             text=f"""
@@ -688,21 +679,31 @@ async def finished_project(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         dev_details = await db_management.dbops('get_one_dev_details',
                                                 [update.message.from_user.id])
         if not dev_details[0]:
-            print('not work')
+            print("❌ Dev not found in database")
+
         else:
             dev_data = dev_details[1][0]
-            if not dev_data[5]:  # get team id
-                print('not work')
+
+            if not dev_data[5]:  # team_id
+                print(f"⚠️ Dev {dev_data[0]} is not assigned to any team")
+
             else:
-                team_details = await db_management.dbops('get_team_details_based_team_id',
-                                                         [dev_data[5]])
+                team_details = await db_management.dbops(
+                    'get_team_details_based_team_id',
+                    [dev_data[5]]
+                )
+
                 if not team_details:
-                    print('not work')
+                    print(f"❌ No team found for team_id: {dev_data[5]}")
+
                 else:
                     ext_bool = team_details[3]
-                    if not ext_bool:  # means dev not from prev batches user, means: old user ok with new batch ,
-                        print('not work')
+
+                    if not ext_bool:
+                        print(f"ℹ️ Team {dev_data[5]} is not extended (normal batch user)")
+
                     else:
+                        print(f"✅ Extended user detected for team {dev_data[5]}")
                         user, is_finished, team_id, streak, total_points, user_name = await db_management.dbops(
                             'check_is_user_already_exist_in_user_db',
                             update.message.from_user.id)
@@ -714,6 +715,20 @@ async def finished_project(update: Update, context: ContextTypes.DEFAULT_TYPE) -
                                                                    [update.message.from_user.id, team_id, streak,
                                                                     total_points, user_name])
                                 if status:
+                                    github_repo = team_details[10]
+                                    await update.message.reply_text(
+                                        f"🎉 <b>Congratulations!</b>\n\n"
+                                        f"✅ Project marked as completed\n"
+                                        f"⭐ Total Points: <b>{total_points}</b>\n\n"
+                                        f"🔗 <b>Project Repository:</b>\n"
+                                        f"{github_repo}\n\n"
+                                        f"💼 <b>Next Step:</b>\n"
+                                        f"Share your project on <b>LinkedIn</b> and showcase your work 🚀\n\n"
+                                        f"👀 <b>Team:</b> Don’t forget to check out this project and support! 🔥\n\n"
+                                        f"👏 Great work! Keep building!",
+                                        parse_mode="HTML",
+                                        disable_web_page_preview=True
+                                    )
                                     print("updated your status and also team isFinished true")
                                 else:
                                     print('not updated teams isFinish but user update done')
@@ -760,6 +775,20 @@ async def finished_project(update: Update, context: ContextTypes.DEFAULT_TYPE) -
                                                                        [update.message.from_user.id, team_id, streak,
                                                                         total_points, user_name])
                                     if status:
+                                        github_repo = team_details[10]
+                                        await update.message.reply_text(
+                                            f"🎉 <b>Congratulations!</b>\n\n"
+                                            f"✅ Project marked as completed\n"
+                                            f"⭐ Total Points: <b>{total_points}</b>\n\n"
+                                            f"🔗 <b>Project Repository:</b>\n"
+                                            f"{github_repo}\n\n"
+                                            f"💼 <b>Next Step:</b>\n"
+                                            f"Share your project on <b>LinkedIn</b> and showcase your work 🚀\n\n"
+                                            f"👀 <b>Team:</b> Don’t forget to check out this project and support! 🔥\n\n"
+                                            f"👏 Great work! Keep building!",
+                                            parse_mode="HTML",
+                                            disable_web_page_preview=True
+                                        )
                                         print("updated your status and also team isFinished true")
                                     else:
                                         print('not updated teams isFinish but user update done')
@@ -794,13 +823,30 @@ async def finished_project(update: Update, context: ContextTypes.DEFAULT_TYPE) -
                 #
                 print(f'found user {user} fini_status: {is_finished} team:{team_id}')
                 print('not finished so we are going to update')
-                status = await db_management.dbops('updating_user_project_finish_and_clean_up',
-                                                   [update.message.from_user.id, team_id, streak, total_points,
-                                                    user_name])
-                if status:
-                    print("updated your status and also team isFinished true")
-                else:
-                    print('not updated teams but user update done')
+                team_details = await db_management.dbops('get_team_details_based_team_id',
+                                                         [team_id])
+                if team_details:
+                    status = await db_management.dbops('updating_user_project_finish_and_clean_up',
+                                                       [update.message.from_user.id, team_id, streak, total_points,
+                                                        user_name])
+                    if status:
+                        github_repo = team_details[10]
+                        await update.message.reply_text(
+                            f"🎉 <b>Congratulations!</b>\n\n"
+                            f"✅ Project marked as completed\n"
+                            f"⭐ Total Points: <b>{total_points}</b>\n\n"
+                            f"🔗 <b>Project Repository:</b>\n"
+                            f"{github_repo}\n\n"
+                            f"💼 <b>Next Step:</b>\n"
+                            f"Share your project on <b>LinkedIn</b> and showcase your work 🚀\n\n"
+                            f"👀 <b>Team:</b> Don’t forget to check out this project and support! 🔥\n\n"
+                            f"👏 Great work! Keep building!",
+                            parse_mode="HTML",
+                            disable_web_page_preview=True
+                        )
+                        print("updated your status and also team isFinished true")
+                    else:
+                        print('not updated teams but user update done')
             else:
                 print('already u finished before')
         else:
