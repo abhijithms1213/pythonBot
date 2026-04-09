@@ -242,14 +242,18 @@ async def team_decl_call(is_success_status, update: Update, context: ContextType
         return
 
 
+sanitized_date = 20260508
+
+
 async def check_msg(msg_date, update, context):
     date_to_string = str(msg_date)
     date_only = date_to_string[:10]
     # print(f"[INFO] msg date extracted: {date_only}")
 
-    extracted = int(date_only.replace('-', ''))
-    extracted = 20260417  # override for testing
-    print(f' extracted date: {extracted}')
+    # extracted = int(date_only.replace('-', ''))
+
+    extracted = sanitized_date  # override for testing
+    print(f'\nextracted date: {extracted}\n\n')
 
     ret_status = await db_management.dbops(
         'check_is_msg_under_planning_phase',
@@ -312,8 +316,8 @@ async def check_msg(msg_date, update, context):
         # 🔹 Valid extended user → update log
         print("[INFO] Updating extended dev log...")
 
-        return_value = helpers_py.update_for_extended_devs(
-            msg_date,
+        return_value = await helpers_py.update_for_extended_devs(
+            extracted,
             update,
             dev_data[5],
             dev_data[1]
@@ -362,8 +366,8 @@ async def check_msg(msg_date, update, context):
                             if ext_date >= today:
                                 print("[INFO] Updating extended dev log...")
 
-                                result = helpers_py.update_for_extended_devs(
-                                    msg_date,
+                                result = await helpers_py.update_for_extended_devs(
+                                    extracted,
                                     update,
                                     dev_data[5],
                                     dev_data[1]
@@ -421,8 +425,8 @@ async def check_msg(msg_date, update, context):
                             if ext_date >= today:
                                 print("[INFO] Updating extended dev log...")
 
-                                result = helpers_py.update_for_extended_devs(
-                                    msg_date,
+                                result = await helpers_py.update_for_extended_devs(
+                                    extracted,
                                     update,
                                     dev_data[5],
                                     dev_data[1]
@@ -478,7 +482,7 @@ async def check_msg(msg_date, update, context):
                 if team_details:
                     team_batch_id = team_details[0]
                     current_batch_id = current_batch[0]
-                    if team_batch_id != current_batch_id:  # if this dev is from prev batch then not equal
+                    if team_batch_id != current_batch_id or team_batch_id == current_batch_id:
                         ext_bool = team_details[3]
                         if ext_bool:
                             ext_date = team_details[4]
@@ -489,8 +493,8 @@ async def check_msg(msg_date, update, context):
                             if ext_date >= today:
                                 print("[INFO] Updating extended dev log...")
 
-                                result = helpers_py.update_for_extended_devs(
-                                    msg_date,
+                                result = await helpers_py.update_for_extended_devs(
+                                    extracted,
                                     update,
                                     dev_data[5],
                                     dev_data[1]
@@ -530,6 +534,10 @@ async def grp_msg(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
         if update.message.text == 'daily_update':
             await schedule_py.daily_update(context)
+            return
+
+        if update.message.text == 'notify_devs':
+            await schedule_py.notify_devs_to_update(context)
             return
         if update.message.text == 'mention':
             chat_id = update.effective_chat.id
@@ -666,11 +674,13 @@ async def join_grp(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 #         print('after'
 
 async def finished_project(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    date = str(update.message.date)
-    date = date[:10]
-    sanitized_date = int(f'{date}'.replace('-', ''))
-    # sanitized_date = 20260416  # override for testing
+    # date = str(update.message.date)
+    # date = date[:10]
+    # sanitized_date = int(f'{date}'.replace('-', ''))
+    # sanitized_date = 20260425  # override for testing
+
     # print(f'date : {date} sani : {sanitized_date}')
+    print(f'msg date in finished_section: {sanitized_date}')
     status = await db_management.dbops('check_is_msg_under_planning_phase', [sanitized_date, update, context])
 
     if status[0] == 'no_batches_currently':
@@ -732,6 +742,8 @@ async def finished_project(update: Update, context: ContextTypes.DEFAULT_TYPE) -
                 else:
                     team_batch_id = team_details[0]
                     current_batch_id = batch_details[0]
+                    print(
+                        f'worked batch miss match found team batch id: {team_batch_id} and current batch:{current_batch_id}')
                     if team_batch_id != current_batch_id:
                         ext_bool = team_details[3]
                         if not ext_bool:  # means dev not from prev batches user, means: old user ok with new batch ,
@@ -763,6 +775,23 @@ async def finished_project(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             update.message.from_user.id)
         if user:
             if not is_finished:
+                #
+                # team_details = await db_management.dbops('get_team_details_based_team_id',
+                #                                          [team_id])
+                # team_deadline = team_details[7]
+                # if sanitized_date <= team_deadline:
+                #     print(f'found user {user} fini_status: {is_finished} team:{team_id}')
+                #     print('not finished so we are going to update')
+                #     status = await db_management.dbops('updating_user_project_finish_and_clean_up',
+                #                                        [update.message.from_user.id, team_id, streak, total_points,
+                #                                         user_name])
+                #     if status:
+                #         print("updated your status and also team isFinished true")
+                #     else:
+                #         print('not updated teams but user update done')
+                # else:
+                #     print('u trying to finish after deadline , we ignoring, in clean up time we consider as finished')
+                #
                 print(f'found user {user} fini_status: {is_finished} team:{team_id}')
                 print('not finished so we are going to update')
                 status = await db_management.dbops('updating_user_project_finish_and_clean_up',
@@ -777,7 +806,7 @@ async def finished_project(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         else:
             print('not found in db about user')
 
-    elif status == 'clean_up_day':
+    elif status[0] == 'clean_up_day':
         print('if u from current batch then ,  cannot finish a project within clean up day')
         batch_details = status[1]
         print(f'batch from clean_up day : {batch_details[0]} , ')
@@ -797,6 +826,8 @@ async def finished_project(update: Update, context: ContextTypes.DEFAULT_TYPE) -
                 else:
                     team_batch_id = team_details[0]
                     current_batch_id = batch_details[0]
+                    print(
+                        f'team batch id: {team_batch_id} and current batch:{current_batch_id} for compare')
                     if team_batch_id != current_batch_id:
                         ext_bool = team_details[3]
                         if not ext_bool:  # means dev not from prev batches user, means: old user ok with new batch ,

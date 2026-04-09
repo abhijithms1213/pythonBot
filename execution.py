@@ -261,17 +261,48 @@ async def project_phase(msg_date, update: Update, context: ContextTypes.DEFAULT_
         )
 
         if extend_msg:
-            ext_days = int(extend_msg.group(1))
-            new_ext_date = datetime.strptime(str(deadline_as_date), '%Y%m%d')
-            temp = new_ext_date + timedelta(days=ext_days)
-            ext_new_date = int(temp.strftime("%Y%m%d"))
-            update_stat = await db_management.dbops('dev_extend_deadline',
-                                                    [user_id, ext_new_date])
-            if update_stat:
-                return 'done'
-            else:
-                return 'not_updated_something_wrong'
+            if not isFinishedFromUser:
+                ext_days = int(extend_msg.group(1))
 
+                if sanitized_date <= deadline_as_date:
+                    new_ext_date = datetime.strptime(str(deadline_as_date), '%Y%m%d')
+                    temp = new_ext_date + timedelta(days=ext_days)
+                    ext_new_date = int(temp.strftime("%Y%m%d"))
+                    ext_date = temp.date()
+                    update_stat = await db_management.dbops('dev_extend_deadline',
+                                                            [team_id_ret, ext_new_date])
+                    if update_stat:
+                        msg = f"✅ Deadline extended successfully!\n\n📅 New extended deadline: <b>{ext_date}</b>"
+                        await update.message.reply_text(
+                            msg,
+                            parse_mode="HTML"
+                        )
+                        return 'done'
+                    else:
+                        print('already extended u before......')
+                        return 'not_updated_something_wrong'
+                else:
+                    print('msged after deadline, but its ok we can extend with todays date, not from deadline')
+                    new_ext_date = datetime.strptime(str(sanitized_date), '%Y%m%d')
+                    temp = new_ext_date + timedelta(days=ext_days)
+                    ext_new_date = int(temp.strftime("%Y%m%d"))
+                    update_stat = await db_management.dbops('dev_extend_deadline',
+                                                            [team_id_ret, ext_new_date])
+                    ext_date = temp.date()
+                    if update_stat:
+                        msg = f"✅ Deadline extended successfully!\n\n📅 New extended deadline: <b>{ext_date}</b>"
+                        await update.message.reply_text(
+                            msg,
+                            parse_mode="HTML"
+                        )
+                        return 'done'
+                    else:
+                        print('already extended u before')
+                        return 'not_updated_something_wrong'
+            else:
+                print('u cant update , u finished project')
+                msg = "⚠️ You can't update , u already finished project"
+                await update.message.reply_text(msg)
         is_all_ok = False
         if sanitized_date <= deadline_as_date:
             if isFinishedFromUser == 1:
@@ -280,6 +311,7 @@ async def project_phase(msg_date, update: Update, context: ContextTypes.DEFAULT_
             if is_extended == 1 and sanitized_date <= ext_date:
                 is_all_ok = True
             else:
+                print('the msg is not under deadline and u didnt extended also')
                 return 'date_after_extension'
         if not isFinishedFromUser == 1 or is_all_ok:
             print('entered recording section in project phase')

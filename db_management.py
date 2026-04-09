@@ -83,7 +83,7 @@ def check_any_batches_running(cursor):
 
 async def check_msg(args, cursor):
     msg_date = args[0]
-    # msg_date=20260312
+    # msg_date=20260504
     update: Update = args[1]
     context: ContextTypes.DEFAULT_TYPE = args[2]
 
@@ -494,13 +494,12 @@ async def daily_activity_record_check_record(args, cursor):
     user_id = str(args[0])
     msg_date = args[1]
 
-    query = f'''
-    select * from daily_logs where tele_id = '{user_id}' and Date = {msg_date};
-    '''
-    # checks is user found in this batch
-    cursor.execute(query)
+    cursor.execute(
+        "SELECT * FROM daily_logs WHERE tele_id = ? AND Date = ?",
+        (user_id, msg_date)
+    )
     result = cursor.fetchall()
-    print(f'from raw user is :{result} and query: {query}')
+    print(f'from raw user is :{result}')
     if result is None:
         return None
     else:
@@ -1324,7 +1323,7 @@ async def dev_extend_deadline(args, cursor):
 
     # 🔍 Step 1: Check current state
     cursor.execute("""
-        SELECT isExtended FROM teams WHERE devs_id = ?
+        SELECT isExtended FROM teams WHERE team_id = ?
     """, (user_id,))
 
     row = cursor.fetchone()
@@ -1339,7 +1338,7 @@ async def dev_extend_deadline(args, cursor):
     cursor.execute("""
         UPDATE teams 
         SET isExtended = 1, ExtDate = ?
-        WHERE devs_id = ?
+        WHERE team_id = ?
     """, (ext_date, user_id))
 
     return cursor.rowcount > 0
