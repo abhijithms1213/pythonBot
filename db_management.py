@@ -100,12 +100,12 @@ async def check_msg(args, cursor):
         # if getstatus[0] <= msg_date <= getstatus[5]:  # 5 is deadline as whole numbers
         print('its show tym')
         return ['during_project_phase', getstatus]
-    elif msg_date > getstatus[5]:
-        print('after deadline worked')
+    elif getstatus[5] <= msg_date <= getstatus[7]:
+        print('clean up day')
         # handle if result[4] is 1
         # check if dev extended already then ok to comment updates
         # else don't need to record add warning 'u didn't mention during project phase'
-        return ['after_deadline', getstatus]
+        return ['clean_up_day', getstatus]
     else:
         print('msg not under any')
         return [None, '']
@@ -159,11 +159,14 @@ async def addnewbatch(args, cursor):
         deadline_date = finish_date + timedelta(days=deadline)
         deadline_full = deadline_date.strftime("%Y%m%d")
 
+        cleanup_date = deadline_date + timedelta(days=1)
+        cleanup_full = cleanup_date.strftime("%Y%m%d")
+
         print(f"finish date full : {finish_date_full}")
         print(f"deadline full    : {deadline_full}")
 
         cursor.execute(f'''
-        insert into batches (Date_id,Planning_Date,isCurrent,deadline,isExtended,deadline_as_date,project_starts) values ({sanitizedDate},{finish_date_full},1,{deadline},0,{deadline_full},{project_starts_formatted}); 
+        insert into batches (Date_id,Planning_Date,isCurrent,deadline,isExtended,deadline_as_date,project_starts,cleanup) values ({sanitizedDate},{finish_date_full},1,{deadline},0,{deadline_full},{project_starts_formatted},{cleanup_full}); 
                         ''')
         # 1 => currently running true , 14 => as default deadline, 0 => boolean that not Extending at initial so it's False
         cursor.execute('select * from batches;')
@@ -487,8 +490,11 @@ async def update_deadline_of_batch(args, cursor):
     deadline_date = date_obj + timedelta(days=int(new_deadline))
     deadline_full = deadline_date.strftime("%Y%m%d")  # 20260410
 
+    cleanup_date = deadline_date + timedelta(days=1)
+    cleanup_full = cleanup_date.strftime("%Y%m%d")
+
     db_query = f'''
-    update batches set deadline={new_deadline} ,deadline_as_date = {deadline_full} where  isCurrent = 1;
+    update batches set deadline={new_deadline} ,deadline_as_date = {deadline_full},cleanup = {cleanup_full} where  isCurrent = 1;
     '''
     print(f'query : {db_query}')
     cursor.execute(db_query)
@@ -1124,7 +1130,7 @@ async def get_log_combined_for_week_update(args, cursor):
         """
     cursor.execute(query)
     result = cursor.fetchall()
-    print(f' result of logs of weeks  {result}')
+    print(f' result of logs of weeks  {result} and query: \n{query}')
 
     return result if result else False
 

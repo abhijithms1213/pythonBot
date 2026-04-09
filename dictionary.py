@@ -79,13 +79,176 @@ async def batch_creates(date, context, update):
                                         text='running a batch currently')
 
 
+async def team_decl_call(is_success_status, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if isinstance(is_success_status, list):
+        if is_success_status[0] == 'error_user_exist':
+            user = is_success_status[1]
+
+            if isinstance(user, str) and user.startswith("@"):
+                user_tag = user
+            else:
+                user_tag = f'<a href="tg://user?id={user}">dev</a>'
+
+            message = f"""
+        An imposter found, {user_tag} is already in another group,
+        so ignoring.
+        """
+
+            await update.effective_message.reply_text(
+                message,
+                parse_mode="HTML"
+            )
+            return
+        else:
+            bot_link = f"https://t.me/{context.bot.username}?start=join"
+            new_join = is_success_status[1]
+            no_id_users: list = is_success_status[2]
+            all_users: list = list(set(new_join + no_id_users))
+
+            topic = is_success_status[3]
+            tech = is_success_status[4]
+            github_repo = is_success_status[5]
+            deadline = is_success_status[6]
+            deadline_as_date = is_success_status[7]
+            team_name = is_success_status[8]
+
+            # 🔥 optional fun lines
+            team_lines = [
+                "I gave your squad a name 😎 hope you like it!",
+                "Your crew just got an identity 🔥",
+                "Team vibes unlocked 🚀",
+            ]
+
+            solo_lines = [
+                "Looks like you're going solo 😎",
+                "Silent assassin mode activated 🥷",
+            ]
+
+            print(f'all users are {all_users}and {no_id_users}')
+            if len(all_users) == 1:
+                # 🧍 Solo — address the user directly as "you"
+                if no_id_users:
+                    print('solo no id warning')
+                    warning_text = f"""
+            ━━━━━━━━━━━━━━━━━━━
+
+            ⚠️ <b>Heads up!</b>
+
+            You haven't started me yet 👀
+            🚨 I can't track or notify you properly.
+
+            💡 <b>Fix (very easy):</b>
+                => <a href="{bot_link}">Tap here to open me 🤖</a>
+                => Send <code>/start</code> or <code>/join</code>
+            ⚡ Do it now… or I'll pretend you don't exist 😶
+            """
+                else:
+                    print('solo else warning')
+                    warning_text = ""  # no missing IDs, no warning needed
+
+            else:
+                # 👥 Team — list missing members
+                if len(no_id_users) >= 1:
+                    warning_text = f"""
+            ━━━━━━━━━━━━━━━━━━━
+
+            ⚠️ <b>Heads up!</b>
+
+            These guys didn't join me yet 👀
+            👉 {no_id_users}
+
+            🚨 I can't track or notify them properly.
+
+            💡 <b>Fix (very easy):</b>
+                => <a href="{bot_link}">Tap here to open me 🤖</a>
+                => Send <code>/start</code> or <code>/join</code>
+            ⚡ Do it now… or I'll pretend they don't exist 😶
+            """
+                else:
+                    print('team else warning')
+                    warning_text = ""
+
+            # ─── Now build the main message ───────────────────────────────────────────
+
+            if len(all_users) == 1:
+                intro_line = random.choice(solo_lines)
+                message = f"""
+            🚀 <b>Project Locked In!</b>
+
+            😎 {intro_line}
+            🏷️ I gave you a title: <b>{team_name}</b>
+
+            🧠 <b>What you're building:</b> {topic}
+            ⚙️ <b>Using:</b> {tech}
+
+          📂 <b>Your Repo:</b> <a href="{github_repo}">Open Repo 🔗</a>
+
+            ⏳ <b>Deadline:</b> {deadline} days
+            📅 <b>Finish by:</b> {deadline_as_date}
+
+            ━━━━━━━━━━━━━━━━━━━
+
+            🔥 It's all on you now... make it legendary ⚡
+            """
+
+            else:
+                intro_line = random.choice(team_lines)
+                message = f"""
+            🚀 <b>Project Locked In!</b>
+
+            😏 {intro_line}
+            🏷️ Your team name is: <b>{team_name}</b>
+
+            🧠 <b>Mission:</b> {topic}
+            ⚙️ <b>Stack:</b> {tech}
+
+            📂 <b>Repo:</b>
+            {github_repo}
+
+            ⏳ <b>Deadline:</b> {deadline} days
+            📅 <b>Finish by:</b> {deadline_as_date}
+
+            💪 Don't disappoint the name <b>{team_name}</b> 😄
+            """
+
+            full_msg = message + warning_text
+
+            await update.effective_message.reply_text(
+                full_msg,
+                parse_mode="HTML",
+                disable_web_page_preview=True
+            )
+            return
+
+            # means valid
+
+    if isinstance(is_success_status, int):
+        print('normal msg')
+        return
+    if isinstance(is_success_status, str):
+        error_map = {
+            "error_no_deadline": "⏳ Where is deadline?\nUse <code>/deadline 14</code>",
+            "error_invalid_deadline": "🚫 Invalid deadline\nAllowed: 14, 17, 21",
+            "error_no_topic": "🧠 Missing topic\nUse <code>/topic your idea</code>",
+            "error_no_tech": "⚙️ Missing tech stack\nUse <code>/tech flutter, python</code>",
+            "error_no_github": "📂 GitHub repo missing\nAdd a valid link",
+        }
+        msg = error_map.get(is_success_status, "❌ Something went wrong")
+
+        await update.effective_message.reply_text(
+            msg,
+            parse_mode="HTML"
+        )
+        return
+
+
 async def check_msg(msg_date, update, context):
     date_to_string = str(msg_date)
     date_only = date_to_string[:10]
     # print(f"[INFO] msg date extracted: {date_only}")
 
     extracted = int(date_only.replace('-', ''))
-    extracted = 20260409  # override for testing
+    extracted = 20260417  # override for testing
     print(f' extracted date: {extracted}')
 
     ret_status = await db_management.dbops(
@@ -223,166 +386,7 @@ async def check_msg(msg_date, update, context):
             is_success_status = await execution.msg_process(
                 msg_date, update, context, current_batch
             )
-            if isinstance(is_success_status, list):
-                if is_success_status[0] == 'error_user_exist':
-                    user = is_success_status[1]
-
-                    if isinstance(user, str) and user.startswith("@"):
-                        user_tag = user
-                    else:
-                        user_tag = f'<a href="tg://user?id={user}">dev</a>'
-
-                    message = f"""
-                An imposter found, {user_tag} is already in another group,
-                so ignoring.
-                """
-
-                    await update.effective_message.reply_text(
-                        message,
-                        parse_mode="HTML"
-                    )
-                    return
-                else:
-                    bot_link = f"https://t.me/{context.bot.username}?start=join"
-                    new_join = is_success_status[1]
-                    no_id_users: list = is_success_status[2]
-                    all_users: list = list(set(new_join + no_id_users))
-
-                    topic = is_success_status[3]
-                    tech = is_success_status[4]
-                    github_repo = is_success_status[5]
-                    deadline = is_success_status[6]
-                    deadline_as_date = is_success_status[7]
-                    team_name = is_success_status[8]
-
-                    # 🔥 optional fun lines
-                    team_lines = [
-                        "I gave your squad a name 😎 hope you like it!",
-                        "Your crew just got an identity 🔥",
-                        "Team vibes unlocked 🚀",
-                    ]
-
-                    solo_lines = [
-                        "Looks like you're going solo 😎",
-                        "Silent assassin mode activated 🥷",
-                    ]
-
-                    print(f'all users are {all_users}and {no_id_users}')
-                    if len(all_users) == 1:
-                        # 🧍 Solo — address the user directly as "you"
-                        if no_id_users:
-                            print('solo no id warning')
-                            warning_text = f"""
-                    ━━━━━━━━━━━━━━━━━━━
-    
-                    ⚠️ <b>Heads up!</b>
-    
-                    You haven't started me yet 👀
-                    🚨 I can't track or notify you properly.
-    
-                    💡 <b>Fix (very easy):</b>
-                        => <a href="{bot_link}">Tap here to open me 🤖</a>
-                        => Send <code>/start</code> or <code>/join</code>
-                    ⚡ Do it now… or I'll pretend you don't exist 😶
-                    """
-                        else:
-                            print('solo else warning')
-                            warning_text = ""  # no missing IDs, no warning needed
-
-                    else:
-                        # 👥 Team — list missing members
-                        if len(no_id_users) >= 1:
-                            warning_text = f"""
-                    ━━━━━━━━━━━━━━━━━━━
-    
-                    ⚠️ <b>Heads up!</b>
-    
-                    These guys didn't join me yet 👀
-                    👉 {no_id_users}
-    
-                    🚨 I can't track or notify them properly.
-    
-                    💡 <b>Fix (very easy):</b>
-                        => <a href="{bot_link}">Tap here to open me 🤖</a>
-                        => Send <code>/start</code> or <code>/join</code>
-                    ⚡ Do it now… or I'll pretend they don't exist 😶
-                    """
-                        else:
-                            print('team else warning')
-                            warning_text = ""
-
-                    # ─── Now build the main message ───────────────────────────────────────────
-
-                    if len(all_users) == 1:
-                        intro_line = random.choice(solo_lines)
-                        message = f"""
-                    🚀 <b>Project Locked In!</b>
-    
-                    😎 {intro_line}
-                    🏷️ I gave you a title: <b>{team_name}</b>
-    
-                    🧠 <b>What you're building:</b> {topic}
-                    ⚙️ <b>Using:</b> {tech}
-    
-                  📂 <b>Your Repo:</b> <a href="{github_repo}">Open Repo 🔗</a>
-    
-                    ⏳ <b>Deadline:</b> {deadline} days
-                    📅 <b>Finish by:</b> {deadline_as_date}
-    
-                    ━━━━━━━━━━━━━━━━━━━
-    
-                    🔥 It's all on you now... make it legendary ⚡
-                    """
-
-                    else:
-                        intro_line = random.choice(team_lines)
-                        message = f"""
-                    🚀 <b>Project Locked In!</b>
-    
-                    😏 {intro_line}
-                    🏷️ Your team name is: <b>{team_name}</b>
-    
-                    🧠 <b>Mission:</b> {topic}
-                    ⚙️ <b>Stack:</b> {tech}
-    
-                    📂 <b>Repo:</b>
-                    {github_repo}
-    
-                    ⏳ <b>Deadline:</b> {deadline} days
-                    📅 <b>Finish by:</b> {deadline_as_date}
-    
-                    💪 Don't disappoint the name <b>{team_name}</b> 😄
-                    """
-
-                    full_msg = message + warning_text
-
-                    await update.effective_message.reply_text(
-                        full_msg,
-                        parse_mode="HTML",
-                        disable_web_page_preview=True
-                    )
-                    return
-
-                    # means valid
-
-            if isinstance(is_success_status, int):
-                print('normal msg')
-                return
-            if isinstance(is_success_status, str):
-                error_map = {
-                    "error_no_deadline": "⏳ Where is deadline?\nUse <code>/deadline 14</code>",
-                    "error_invalid_deadline": "🚫 Invalid deadline\nAllowed: 14, 17, 21",
-                    "error_no_topic": "🧠 Missing topic\nUse <code>/topic your idea</code>",
-                    "error_no_tech": "⚙️ Missing tech stack\nUse <code>/tech flutter, python</code>",
-                    "error_no_github": "📂 GitHub repo missing\nAdd a valid link",
-                }
-                msg = error_map.get(is_success_status, "❌ Something went wrong")
-
-                await update.effective_message.reply_text(
-                    msg,
-                    parse_mode="HTML"
-                )
-                return
+            await team_decl_call(is_success_status, update, context)
 
 
     elif status == 'during_project_phase':
@@ -454,6 +458,51 @@ async def check_msg(msg_date, update, context):
                 return
         else:
             print('update done dev from not this batch')
+
+    elif status == 'clean_up_day':
+        print('today is clean up day')
+        dev_details = await db_management.dbops(
+            'get_one_dev_details',
+            [update.message.from_user.id]
+        )
+
+        if dev_details[0]:
+            dev_data = dev_details[1][0]
+
+            if dev_data[5]:  # has team
+                team_details = await db_management.dbops(
+                    'get_team_details_based_team_id',
+                    [dev_data[5]]
+                )
+
+                if team_details:
+                    team_batch_id = team_details[0]
+                    current_batch_id = current_batch[0]
+                    if team_batch_id != current_batch_id:  # if this dev is from prev batch then not equal
+                        ext_bool = team_details[3]
+                        if ext_bool:
+                            ext_date = team_details[4]
+                            today = int(datetime.now().strftime("%Y%m%d"))
+
+                            print(f"[DEBUG] ext_date: {ext_date}, today: {today}")
+
+                            if ext_date >= today:
+                                print("[INFO] Updating extended dev log...")
+
+                                result = helpers_py.update_for_extended_devs(
+                                    msg_date,
+                                    update,
+                                    dev_data[5],
+                                    dev_data[1]
+                                )
+
+                                if result:
+                                    print("[SUCCESS] Extended update done")
+                                else:
+                                    print("[ERROR] Extended update failed")
+
+                            else:
+                                print("[WARN] Extended deadline over")
 
 
 async def grp_msg(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -664,7 +713,9 @@ async def finished_project(update: Update, context: ContextTypes.DEFAULT_TYPE) -
                             print('not found in db about user')
 
     elif status[0] == 'during_planning_phase':
+        batch_details = status[1]
         print('planning')
+        print(f'batch from during planning phase: {batch_details[0]} , ')
         dev_details = await db_management.dbops('get_one_dev_details',
                                                 [update.message.from_user.id])
         if not dev_details[0]:
@@ -679,28 +730,31 @@ async def finished_project(update: Update, context: ContextTypes.DEFAULT_TYPE) -
                 if not team_details:
                     print('not work')
                 else:
-                    ext_bool = team_details[3]
-                    if not ext_bool:  # means dev not from prev batches user, means: old user ok with new batch ,
-                        print('not work')
-                    else:
-                        user, is_finished, team_id, streak, total_points, user_name = await db_management.dbops(
-                            'check_is_user_already_exist_in_user_db',
-                            update.message.from_user.id)
-                        if user:
-                            if not is_finished:
-                                print(f'found user {user} fini_status: {is_finished} team:{team_id}')
-                                print('not finished i found')
-                                status = await db_management.dbops('updating_user_project_finish_and_clean_up',
-                                                                   [update.message.from_user.id, team_id, streak,
-                                                                    total_points, user_name])
-                                if status:
-                                    print("updated your status and also team isFinished true")
-                                else:
-                                    print('not updated teams isFinish but user update done')
-                            else:
-                                print('already u finished before')
+                    team_batch_id = team_details[0]
+                    current_batch_id = batch_details[0]
+                    if team_batch_id != current_batch_id:
+                        ext_bool = team_details[3]
+                        if not ext_bool:  # means dev not from prev batches user, means: old user ok with new batch ,
+                            print('not work')
                         else:
-                            print('not found in db about user')
+                            user, is_finished, team_id, streak, total_points, user_name = await db_management.dbops(
+                                'check_is_user_already_exist_in_user_db',
+                                update.message.from_user.id)
+                            if user:
+                                if not is_finished:
+                                    print(f'found user {user} fini_status: {is_finished} team:{team_id}')
+                                    print('not finished i found')
+                                    status = await db_management.dbops('updating_user_project_finish_and_clean_up',
+                                                                       [update.message.from_user.id, team_id, streak,
+                                                                        total_points, user_name])
+                                    if status:
+                                        print("updated your status and also team isFinished true")
+                                    else:
+                                        print('not updated teams isFinish but user update done')
+                                else:
+                                    print('already u finished before')
+                            else:
+                                print('not found in db about user')
 
     elif status[0] == 'during_project_phase':
         print('project')
@@ -723,8 +777,51 @@ async def finished_project(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         else:
             print('not found in db about user')
 
+    elif status == 'clean_up_day':
+        print('if u from current batch then ,  cannot finish a project within clean up day')
+        batch_details = status[1]
+        print(f'batch from clean_up day : {batch_details[0]} , ')
+        dev_details = await db_management.dbops('get_one_dev_details',
+                                                [update.message.from_user.id])
+        if not dev_details[0]:
+            print('not work')
+        else:
+            dev_data = dev_details[1][0]
+            if not dev_data[5]:  # get team id
+                print('not work')
+            else:
+                team_details = await db_management.dbops('get_team_details_based_team_id',
+                                                         [dev_data[5]])
+                if not team_details:
+                    print('not work')
+                else:
+                    team_batch_id = team_details[0]
+                    current_batch_id = batch_details[0]
+                    if team_batch_id != current_batch_id:
+                        ext_bool = team_details[3]
+                        if not ext_bool:  # means dev not from prev batches user, means: old user ok with new batch ,
+                            print('not work')
+                        else:
+                            user, is_finished, team_id, streak, total_points, user_name = await db_management.dbops(
+                                'check_is_user_already_exist_in_user_db',
+                                update.message.from_user.id)
+                            if user:
+                                if not is_finished:
+                                    print(f'found user {user} fini_status: {is_finished} team:{team_id}')
+                                    print('not finished i found')
+                                    status = await db_management.dbops('updating_user_project_finish_and_clean_up',
+                                                                       [update.message.from_user.id, team_id, streak,
+                                                                        total_points, user_name])
+                                    if status:
+                                        print("updated your status and also team isFinished true")
+                                    else:
+                                        print('not updated teams isFinish but user update done')
+                                else:
+                                    print('already u finished before')
+                            else:
+                                print('not found in db about user')
     else:
-        print('after')
+        print('avoid this run , in clean up day ni8 11:50 do call method clean up, b4 ending this clean up day')
 
 
 async def help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

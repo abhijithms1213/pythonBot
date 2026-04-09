@@ -222,29 +222,33 @@ async def attention_msgs(context):
     today_as_int = int(today.strftime("%Y%m%d"))
 
     tomorrow_as_int = int((today + timedelta(days=1)).strftime("%Y%m%d"))
+    # today_as_int = 20260411
+    # tomorrow_as_int = 20260507
 
-    print(f"📅 Today: {today_as_int}")
+    print(f"📅 Today: {today_as_int} tommorrow {tomorrow_as_int} || project start:{project_start} || deadline: {deadline_as_date} || planning date:{planning_date}")
 
     # 🔔 1. Before planning ends (1 day before)
     if tomorrow_as_int == planning_date:
         await context.bot.send_message(
-            chat_id='',
+            chat_id=zero_dev_grp_id,
             text="⚠️ Planning phase ends tomorrow. Get ready!"
         )
 
     # 🚀 2. Project start day
     if today_as_int == project_start:
         await context.bot.send_message(
-            chat_id='YOUR_GROUP_ID',
+            chat_id=zero_dev_grp_id,
             text="🚀 Project starts today! Let's go!"
         )
 
     # ⏳ 3. Before deadline (1 day before)
     if tomorrow_as_int == deadline_as_date:
         await context.bot.send_message(
-            chat_id='YOUR_GROUP_ID',
+            chat_id=zero_dev_grp_id,
             text="⏳ Deadline is tomorrow! Final push!"
         )
+
+    return
 
 
 async def weekly_report(context: ContextTypes.DEFAULT_TYPE):
@@ -254,7 +258,21 @@ async def weekly_report(context: ContextTypes.DEFAULT_TYPE):
     print(f'{getstatus}')
     # today
     today = datetime.now().date()
-    today = datetime.now().date() + timedelta(days=9)
+
+    # first week
+    # today = datetime.now().date() + timedelta(days=9)
+
+    # second week
+    # today = datetime.now().date() + timedelta(days=16)
+
+    # 2nd half week
+    # today = datetime.now().date() + timedelta(days=20)
+    #
+    # # third week
+    # today = datetime.now().date() + timedelta(days=22)
+    #
+    # # fourth week
+    # today = datetime.now().date() + timedelta(days=29)
 
     today_as_int = int(today.strftime("%Y%m%d"))
     start = getstatus[6]  # start date
@@ -304,11 +322,8 @@ async def weekly_report(context: ContextTypes.DEFAULT_TYPE):
     elif getstatus[6] <= today_as_int <= getstatus[5]:  # 5 is deadline as whole numbers, 6 is project starts
         print('report is reco as project phase')
 
-        # print(
-        #     f'today {today} and day {today.strftime("%A")}, first week {first_week} ,and start: {start_as_formate},deadline {deadline}')
-
         if today == first_week:  # if starts 03-01 , then today == 03-07 is saturday
-            print(f'worked second, {second_week}')
+            print(f'worked week one, {first_week}')
             # 🔥 subtract 1 day
             end_date = first_week - timedelta(days=1)
             end_date_as_int = int(end_date.strftime("%Y%m%d"))
@@ -421,7 +436,7 @@ async def weekly_report(context: ContextTypes.DEFAULT_TYPE):
                 await context.bot.send_message(
                     # chat_id=update.effective_chat.id,
                     chat_id=zero_dev_grp_id,
-                    text="⚠️ No records for this week"
+                    text="⚠️ No activity recorded for developers under the 17-day deadline."
                 )
                 return 0
             await context.bot.send_message(
@@ -438,7 +453,7 @@ async def weekly_report(context: ContextTypes.DEFAULT_TYPE):
 
             report = await process_weekly_report(
                 second_week_as_int,
-                end_date_as_int, True
+                end_date_as_int
             )
             if report == 'no_records':
                 await context.bot.send_message(
@@ -460,7 +475,7 @@ async def weekly_report(context: ContextTypes.DEFAULT_TYPE):
             print(f'worked fourth sunday {fourth_week}')
             report = await process_weekly_report(
                 third_week_as_int,
-                end_date_as_int, True
+                end_date_as_int
             )
             if report == 'no_records':
                 await context.bot.send_message(
