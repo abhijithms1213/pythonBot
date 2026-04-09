@@ -137,65 +137,70 @@ async def process_weekly_report(first_as_int, second_as_int, is_from_between: bo
 
 
 def format_users(users):
+    if not users:
+        return "None"
+
     formatted = []
+
     for i, (tele_id, fullname, firstname, username, streak, points, team_name) in enumerate(users, start=1):
         name = fullname or firstname or username or "Unknown"
+
         mention = f'<a href="tg://user?id={tele_id}">{name}</a>'
 
         formatted.append(
             f"{i}. {mention}\n"
-            f"   🧠 Streak: {streak} | ⭐ Points: {points}\n"
-            f"   👥 Team: {team_name or 'No Team'}"
+            f"🧠 Streak: {streak} | ⭐ Points: {points}\n"
+            f"👥 Team: {team_name or 'No Team'}"
         )
 
-    return "\n\n".join(formatted) if formatted else "None"
+    return "\n\n".join(formatted)
 
 
 async def lets_clean_all(context: ContextTypes.DEFAULT_TYPE, update: Update):
-    print('deadline+1 st day is clean up day')
-    getstatus = await  db_management.dbops('get_current_batch', '')
-    print(f'batch: {type(getstatus[1])} {type(getstatus[5])}\n')
-    print(f'{getstatus}')
     today = datetime.now().date()
     today_as_int = int(today.strftime("%Y%m%d"))
+    today_as_int = 20260508
 
-    # for get clean up day
-    deadline = getstatus[5]
-    deadline_as_str = str(deadline)
-    deadline_as_date = datetime.strptime(deadline_as_str, "%Y%m%d")
-    clean_up_day = deadline_as_date + timedelta(days=1)
-    clean_up_day_as_int = int(clean_up_day.strftime("%Y%m%d"))
+    getstatus = await db_management.dbops('check_is_msg_under_planning_phase', [today_as_int])
+    print(f'\n BATCH: {getstatus}')
 
-    if today == clean_up_day:  # from it
-        print('its time to clean')
+    if getstatus is None:
+        print('no running batches')
 
-        finished, not_finished_not_extended, not_finished_extended = await  db_management.dbops('clean_up_batch_end',
-                                                                                                '')
-        message = f"""
-        ━━━━━━━━━━━━━━━━━━━━━━
+    elif getstatus[0] == 'clean_up_day':
+        clean_up_day = getstatus[1][7]
+        print(f'clean up day: {clean_up_day} and today is {today_as_int} and {today}')
+        if today_as_int == clean_up_day:  # from it
+            print('its time to clean')
 
-        🏁 <b>Batch Report</b>
+            finished, not_finished_not_extended, not_finished_extended = await  db_management.dbops(
+                'clean_up_batch_end',
+                '')
+            message = (
+                "━━━━━━━━━━━━━━━━━━━━━━\n\n"
 
-        🏆 <b>Finished Users</b>
-        {format_users(finished)}
+                "🏁 <b>Batch Report</b>\n\n"
 
-        ⚠️ <b>Not Finished (Deadline Over)</b>
-        {format_users(not_finished_not_extended)}
+                "🏆 <b>Finished Users</b>\n"
+                f"{format_users(finished)}\n\n"
 
-        ⏳ <b>Extended Users</b>
-        {format_users(not_finished_extended)}
+                "⚠️ <b>Not Finished (Deadline Over)</b>\n"
+                f"{format_users(not_finished_not_extended)}\n\n"
 
-        ━━━━━━━━━━━━━━━━━━━━━━
-        """
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text=message,
-            parse_mode="HTML"
-        )
-        return ['clean_finished', getstatus]
+                "⏳ <b>Extended Users</b>\n"
+                f"{format_users(not_finished_extended)}\n\n"
+
+                "━━━━━━━━━━━━━━━━━━━━━━"
+            )
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text=message,
+                parse_mode="HTML"
+            )
+        else:
+            print('msg not under any')
     else:
-        print('msg not under any')
-        return [None, '']
+        print('not found any clean up day')
 
 
 # [Done]
@@ -579,6 +584,7 @@ async def daily_update(context: ContextTypes.DEFAULT_TYPE):
         print('msg not under any')
 
 
+# [Done]
 async def notify_devs_to_update(context: ContextTypes.DEFAULT_TYPE):
     getstatus = await  db_management.dbops('get_current_batch', '')
     print(f'batch: {type(getstatus[1])} {type(getstatus[0])}')
