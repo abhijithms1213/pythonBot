@@ -1,19 +1,10 @@
-import asyncio
-from collections import defaultdict
-from xmlrpc.client import DateTime
-
 from telegram import Update
-from datetime import datetime, timedelta
-import re
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
-import operator as op
-
-import helpers
 import db_management
-
 from datetime import datetime, timedelta
 
 zero_dev_grp_id = -5287913183
+import helpers as helpers_py
 
 from telegram.constants import MessageEntityType
 
@@ -207,6 +198,7 @@ async def lets_clean_all(context: ContextTypes.DEFAULT_TYPE, update: Update):
         return [None, '']
 
 
+# [Done]
 async def attention_msgs(context):
     batch = await db_management.dbops('get_current_batch', '')
     if not batch:
@@ -225,7 +217,8 @@ async def attention_msgs(context):
     # today_as_int = 20260411
     # tomorrow_as_int = 20260507
 
-    print(f"📅 Today: {today_as_int} tommorrow {tomorrow_as_int} || project start:{project_start} || deadline: {deadline_as_date} || planning date:{planning_date}")
+    print(
+        f"📅 Today: {today_as_int} tommorrow {tomorrow_as_int} || project start:{project_start} || deadline: {deadline_as_date} || planning date:{planning_date}")
 
     # 🔔 1. Before planning ends (1 day before)
     if tomorrow_as_int == planning_date:
@@ -251,6 +244,7 @@ async def attention_msgs(context):
     return
 
 
+# [Done]
 async def weekly_report(context: ContextTypes.DEFAULT_TYPE):
     print('weekly')
     getstatus = await  db_management.dbops('get_current_batch', '')
@@ -499,6 +493,7 @@ async def weekly_report(context: ContextTypes.DEFAULT_TYPE):
         return [None, '']
 
 
+# [Done]
 async def daily_update(context: ContextTypes.DEFAULT_TYPE):
     getstatus = await  db_management.dbops('get_current_batch', '')
     print(f'batch: {type(getstatus[1])} {type(getstatus[0])}')
@@ -584,5 +579,37 @@ async def daily_update(context: ContextTypes.DEFAULT_TYPE):
         print('msg not under any')
 
 
-if __name__ == '__main__':
-    asyncio.run(weekly_report())
+async def notify_devs_to_update(context: ContextTypes.DEFAULT_TYPE):
+    getstatus = await  db_management.dbops('get_current_batch', '')
+    print(f'batch: {type(getstatus[1])} {type(getstatus[0])}')
+    print(f'\n BATCH: {getstatus}')
+    today = datetime.now().date()
+    today_as_int = int(today.strftime("%Y%m%d"))
+    # today_as_int = 20260425
+
+    if getstatus is None:
+        print('no running batches')
+    elif getstatus[6] <= today_as_int <= getstatus[5]:  # 5 is deadline as whole numbers
+        print('its show tym')
+        devs = await  db_management.dbops('get_missed_updates', [today_as_int])
+        if devs:
+            print('devs found')
+            print(f'today {today_as_int} and to: {today}')
+            mentions = helpers_py.build_mentions(devs)
+            # print( f'{len(devs[0])} and length : {len(devs)} and type {type(mentions)}')
+            if len(devs) == 1:
+                print('worked solo')
+                random_msg = helpers_py.get_random_alert_solo_msg()
+            else:
+                print('squad')
+                random_msg = helpers_py.get_random_alert_team_msg()
+
+            final_msg = f"{random_msg}\n{mentions}"
+
+            await context.bot.send_message(
+                chat_id=zero_dev_grp_id,
+                text=final_msg,
+                parse_mode="HTML"
+            )
+    else:
+        print('msg not under any')
