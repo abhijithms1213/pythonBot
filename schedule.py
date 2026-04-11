@@ -127,9 +127,19 @@ async def process_weekly_report(first_as_int, second_as_int, is_from_between: bo
         # ✅ Proper Telegram user mention using ID
         user_tag = f'<a href="tg://user?id={tele_id}">{dev["name"]}</a>'
 
+        points = dev['final_points']
+
+        # 🔥 point display logic
+        if points == 0:
+            point_display = "🔴"
+        elif points < 5:
+            point_display = f"🟠 {points}"
+        else:
+            point_display = f"🟢 {points}"
+
         report += (
             f"<b>{i}.</b> {user_tag} — "
-            f"<b>{dev['final_points']} pts</b> "
+            f"<b>{point_display}</b> "
             f"({dev['active_days']} days){streak_tag}\n"
         )
 
@@ -565,11 +575,20 @@ async def daily_update(context: ContextTypes.DEFAULT_TYPE):
                         status = "✅" if user["update"] == 1 else "❌"
 
                         user_tag = f'<a href="tg://user?id={user["tele_id"]}">{user["name"]}</a>'
+                        # 🔥 Point display logic
+                        points = user["point"]
+
+                        if points == 0:
+                            point_display = "🔴"
+                        elif points < 3:
+                            point_display = f"🟠 {points}"
+                        else:
+                            point_display = f"🟢 {points}"
 
                         message += (
                             f"👤 {user_tag} | "
                             f"Update: {status} | "
-                            f"Pts: {user['point']}\n"
+                            f"Pts: {point_display}\n"
                         )
 
                     message += "\n"
