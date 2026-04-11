@@ -597,8 +597,11 @@ async def add_daily_update_in_logs(args, cursor):
     msg_content = args[3]
     check_entry = args[4]
     team_id = args[5]
+    is_extended = args[6]
+
     print('daily update worked')
     # check already updated ?
+    # if is_extended  == 1:
     query = f'''
            select isUpdated,PointEarned from daily_logs where tele_id = '{user_id}' and Date = {msg_date};
        '''
@@ -622,7 +625,7 @@ async def add_daily_update_in_logs(args, cursor):
             result = cursor.fetchone()
 
             point = await update_daily_point(
-                [0, user_id, user_name, team_id, point_earned, msg_date],
+                [0, user_id, user_name, team_id, point_earned, msg_date, is_extended],
                 cursor
             )
         else:
@@ -642,7 +645,7 @@ async def add_daily_update_in_logs(args, cursor):
             # point = await dbops('update_daily_point',
             #                     [0, user_id, user_name, team_id, point_earned, msg_date])
             point = await update_daily_point(
-                [0, user_id, user_name, team_id, point_earned, msg_date],
+                [0, user_id, user_name, team_id, point_earned, msg_date, is_extended],
                 cursor
             )
         print('now check the streak coz: isUpdate in both cases we made as: 1 ')
@@ -738,6 +741,7 @@ async def add_activity_msg_first_entry_today(args, cursor):
     msg_date = args[2]
     user_name = args[3]
     team_id = args[5]
+    is_extended = args[6]
 
     print(f'msg date in activity method: {msg_date}')
     # msg_date = 20260401
@@ -772,7 +776,7 @@ async def add_activity_msg_first_entry_today(args, cursor):
 
             # update point , 1 is activity updated
             point = await update_daily_point(
-                [1, user_id, user_name, team_id, point_earned, extracted], cursor)
+                [1, user_id, user_name, team_id, point_earned, extracted, is_extended], cursor)
         else:
             print('msg len under 20')
             query = f'''
@@ -812,7 +816,7 @@ async def add_activity_msg_first_entry_today(args, cursor):
                     # update point
                     point = await update_daily_point(
                         [1, user_id, user_name, team_id, point_earned,
-                         msg_date], cursor)  # 1 means it's for update
+                         msg_date, is_extended], cursor)  # 1 means it's for update
                 else:
                     return False
             else:
@@ -837,6 +841,7 @@ async def update_daily_point(args, cursor):
     team_id = args[3]
     msg_date = args[5]
     point_earned = args[4]
+    is_extended = args[6]
 
     print(f'point earned got in update daily:{point_earned}')
     print(f'current up var : {current_updated_var}')
@@ -858,35 +863,41 @@ async def update_daily_point(args, cursor):
         f'user : {user_id},usrnma: {user_name},tm: {team_id},point: {point_earned},wherefrom:{current_updated_var} 0 =update, deadline_frm_tm={deadline} ')
 
     if current_updated_var == 0:  # from update call
-        print('update:')
-        if deadline == 14:
-            # point add is 2
-            print(f'points: {point_earned} and earned')
-            point = point_earned + 2
-        elif deadline == 17:
-            # point add is 2
-            point = point_earned + 2
-        elif deadline == 26:
-            # point add is 1
-            point = point_earned + 1
+        print('update: point calculation')
+        if is_extended == 1:  # in extended case not need point add, we always set as 0
+            point = 0
+            print('entered extended mode so point will be 0')
         else:
-            print('false')
+            if deadline == 14:
+                # point add is 2
+                point = point_earned + 2
+            elif deadline == 17:
+                # point add is 2
+                point = point_earned + 2
+            elif deadline == 26:
+                # point add is 1
+                point = point_earned + 1
+            else:
+                print('false')
     elif current_updated_var == 1:  # from activity
-        print('activity:')
-        if deadline == 14:
-            # point add is 2
-
-            print(f'points: {point_earned} and earned in activity')
-            point = point_earned + 2
-        elif deadline == 17:
-            # point add is 1
-            point = point_earned + 1
-        elif deadline == 26:
-            print(f'in 26 points: {point_earned} and earned in activity')
-            # point add is 1
-            point = point_earned + 1
+        if is_extended == 1:  # in extended case not need point add, we always set as 0
+            print('entered extended mode so point will be 0')
+            point = 0
         else:
-            print('false')
+            print('activity: point calculation')
+            if deadline == 14:
+                # point add is 2
+
+                point = point_earned + 2
+            elif deadline == 17:
+                # point add is 1
+                point = point_earned + 1
+            elif deadline == 26:
+                print(f'in 26 points: {point_earned} and earned in activity')
+                # point add is 1
+                point = point_earned + 1
+            else:
+                print('false')
 
     print(f'point earned {point_earned} and added pnt:{point}')
     query = f'''
@@ -1328,13 +1339,14 @@ async def update_dev_detail_if_found(args, cursor):
 
 
 async def dev_extend_deadline(args, cursor):
-    user_id = args[0]
+    team_id = args[0]  # actually it's team id naming issue
     ext_date = args[1]
+    user_id = args[2]
 
     # 🔍 Step 1: Check current state
     cursor.execute("""
         SELECT isExtended FROM teams WHERE team_id = ?
-    """, (user_id,))
+    """, (team_id,))
 
     row = cursor.fetchone()
 
@@ -1344,12 +1356,19 @@ async def dev_extend_deadline(args, cursor):
     if row[0] == 1:
         return False  # already extended ❌
 
-    # 🔄 Step 2: Perform update
+    # 🔄 Step 2: Perform update (teams)
     cursor.execute("""
         UPDATE teams 
         SET isExtended = 1, ExtDate = ?
         WHERE team_id = ?
-    """, (ext_date, user_id))
+    """, (ext_date, team_id))
+
+    # 🔻 Step 3: Deduct 1 point from all devs in that team
+    cursor.execute("""
+        UPDATE devs
+        SET total_points = total_points - 1
+        WHERE team_id = ? AND total_points > 0
+    """, (team_id,))
 
     return cursor.rowcount > 0
 

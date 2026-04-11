@@ -79,161 +79,19 @@ async def batch_creates(date, context, update):
                                         text='running a batch currently')
 
 
-async def team_decl_call(is_success_status, update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if isinstance(is_success_status, list):
-        if is_success_status[0] == 'error_user_exist':
-            user = is_success_status[1]
-
-            if isinstance(user, str) and user.startswith("@"):
-                user_tag = user
-            else:
-                user_tag = f'<a href="tg://user?id={user}">dev</a>'
-
-            message = f"""
-        An imposter found, {user_tag} is already in another group,
-        so ignoring.
-        """
-
-            await update.effective_message.reply_text(
-                message,
-                parse_mode="HTML"
-            )
-            return
-        else:
-            bot_link = f"https://t.me/{context.bot.username}?start=join"
-            new_join = is_success_status[1]
-            no_id_users: list = is_success_status[2]
-            all_users: list = list(set(new_join + no_id_users))
-
-            topic = is_success_status[3]
-            tech = is_success_status[4]
-            github_repo = is_success_status[5]
-            deadline = is_success_status[6]
-            deadline_as_date = is_success_status[7]
-            team_name = is_success_status[8]
-
-            # 🔥 optional fun lines
-            team_lines = [
-                "I gave your squad a name 😎 hope you like it!",
-                "Your crew just got an identity 🔥",
-                "Team vibes unlocked 🚀",
-            ]
-
-            solo_lines = [
-                "Looks like you're going solo 😎",
-                "Silent assassin mode activated 🥷",
-            ]
-
-            print(f'all users are {all_users}and {no_id_users}')
-            if len(all_users) == 1:
-                # 🧍 Solo — address the user directly as "you"
-                if no_id_users:
-                    print('solo no id warning')
-                    warning_text = f"""
-            ━━━━━━━━━━━━━━━━━━━
-
-            ⚠️ <b>Heads up!</b>
-
-            You haven't started me yet 👀
-            🚨 I can't track or notify you properly.
-
-            💡 <b>Fix (very easy):</b>
-                => <a href="{bot_link}">Tap here to open me 🤖</a>
-                => Send <code>/start</code> or <code>/join</code>
-            ⚡ Do it now… or I'll pretend you don't exist 😶
-            """
-                else:
-                    print('solo else warning')
-                    warning_text = ""  # no missing IDs, no warning needed
-
-            else:
-                # 👥 Team — list missing members
-                if len(no_id_users) >= 1:
-                    warning_text = f"""
-            ━━━━━━━━━━━━━━━━━━━
-
-            ⚠️ <b>Heads up!</b>
-
-            These guys didn't join me yet 👀
-            👉 {no_id_users}
-
-            🚨 I can't track or notify them properly.
-
-            💡 <b>Fix (very easy):</b>
-                => <a href="{bot_link}">Tap here to open me 🤖</a>
-                => Send <code>/start</code> or <code>/join</code>
-            ⚡ Do it now… or I'll pretend they don't exist 😶
-            """
-                else:
-                    print('team else warning')
-                    warning_text = ""
-
-            # ─── Now build the main message ───────────────────────────────────────────
-
-            if len(all_users) == 1:
-                intro_line = random.choice(solo_lines)
-                message = f"""
-            🚀 <b>Project Locked In!</b>
-
-            😎 {intro_line}
-            🏷️ I gave you a title: <b>{team_name}</b>
-
-            🧠 <b>What you're building:</b> {topic}
-            ⚙️ <b>Using:</b> {tech}
-
-          📂 <b>Your Repo:</b> <a href="{github_repo}">Open Repo 🔗</a>
-
-            ⏳ <b>Deadline:</b> {deadline} days
-            📅 <b>Finish by:</b> {deadline_as_date}
-
-            ━━━━━━━━━━━━━━━━━━━
-
-            🔥 It's all on you now... make it legendary ⚡
-            """
-
-            else:
-                intro_line = random.choice(team_lines)
-                message = f"""
-            🚀 <b>Project Locked In!</b>
-
-            😏 {intro_line}
-            🏷️ Your team name is: <b>{team_name}</b>
-
-            🧠 <b>Mission:</b> {topic}
-            ⚙️ <b>Stack:</b> {tech}
-
-            📂 <b>Repo:</b>
-            {github_repo}
-
-            ⏳ <b>Deadline:</b> {deadline} days
-            📅 <b>Finish by:</b> {deadline_as_date}
-
-            💪 Don't disappoint the name <b>{team_name}</b> 😄
-            """
-
-            full_msg = message + warning_text
-
-            await update.effective_message.reply_text(
-                full_msg,
-                parse_mode="HTML",
-                disable_web_page_preview=True
-            )
-            return
-
-            # means valid
-
-    if isinstance(is_success_status, int):
-        print('normal msg')
-        return
+async def team_decl_call(is_success_status, update, context):
+    # 🔹 If not list → handle string errors here
     if isinstance(is_success_status, str):
         error_map = {
-            "error_no_deadline": "⏳ Where is deadline?\nUse <code>/deadline 14</code>",
-            "error_invalid_deadline": "🚫 Invalid deadline\nAllowed: 14, 17, 21",
-            "error_no_topic": "🧠 Missing topic\nUse <code>/topic your idea</code>",
-            "error_no_tech": "⚙️ Missing tech stack\nUse <code>/tech flutter, python</code>",
-            "error_no_github": "📂 GitHub repo missing\nAdd a valid link",
+            "error_no_deadline": "⏳ <b>Missing deadline</b>\nUse <code>/deadline 14 or 17 or 26</code>",
+            "error_invalid_deadline": "🚫 <b>Invalid deadline</b>\nAllowed: 14, 17, 26",
+            "error_no_topic": "🧠 <b>Missing topic</b>\nUse <code>/topic your idea</code>",
+            "error_no_tech": "⚙️ <b>Missing tech stack</b>\nUse <code>/tech flutter, python</code>",
+            "error_no_github": "📂 <b>GitHub repo missing</b>\nAdd a valid link",
+            "invalid_something_went_wrong": "❌ Something went wrong while creating the team. Try again."
         }
-        msg = error_map.get(is_success_status, "❌ Something went wrong")
+
+        msg = error_map.get(is_success_status, "❌ Unexpected error occurred")
 
         await update.effective_message.reply_text(
             msg,
@@ -241,8 +99,140 @@ async def team_decl_call(is_success_status, update: Update, context: ContextType
         )
         return
 
+    # 🔹 Ignore non-list non-string
+    if not isinstance(is_success_status, list):
+        return
 
-sanitized_date = 20260511
+    # ───────────────── ERROR CASE ───────────────── #
+    if is_success_status[0] == 'error_user_exist':
+        user = is_success_status[1]
+
+        user_tag = (
+            user if isinstance(user, str) and user.startswith("@")
+            else f'<a href="tg://user?id={user}">dev</a>'
+        )
+
+        await update.effective_message.reply_text(
+            f"⚠️ <b>Imposter detected!</b>\n\n{user_tag} is already in another group.",
+            parse_mode="HTML"
+        )
+        return
+
+    # 🔹 If it's not valid → safety fallback
+    if is_success_status[0] != 'valid':
+        await update.effective_message.reply_text(
+            "❌ Something went wrong. Please try again.",
+            parse_mode="HTML"
+        )
+        return
+
+    # ───────────────── DATA EXTRACTION ───────────────── #
+    bot_link = f"https://t.me/{context.bot.username}?start=join"
+
+    new_join = is_success_status[1]
+    no_id_users = is_success_status[2]
+    all_users = list(set(new_join + no_id_users))
+
+    topic = is_success_status[3]
+    tech = is_success_status[4]
+    github_repo = is_success_status[5]
+    deadline = is_success_status[6]
+    deadline_as_date = is_success_status[7]
+    team_name = is_success_status[8]
+
+    # ───────────────── RANDOM LINES ───────────────── #
+    team_lines = [
+        "Your crew just got an identity 🔥",
+        "Team vibes unlocked 🚀",
+        "Let’s build something amazing together 💪"
+    ]
+
+    solo_lines = [
+        "Looks like you're going solo 😎",
+        "Silent assassin mode activated 🥷"
+    ]
+
+    # ───────────────── WARNING SECTION ───────────────── #
+    warning_text = ""
+
+    if len(all_users) == 1:
+        if no_id_users:
+            warning_text = (
+                "⚠️ <b>Heads up!</b>\n\n"
+                "You haven't started me yet 👀\n"
+                "🚨 I can't track you properly.\n\n"
+                "💡 <b>Fix:</b>\n"
+                "👉 simply say <b>hi</b> / <b>hello</b> in this group\n"
+                f"👉 Or <a href=\"{bot_link}\">Open bot</a> and send <code>/start</code>\n"
+            )
+
+    else:
+        if no_id_users:
+            missing = "\n".join(f"• {u}" for u in no_id_users)
+
+            warning_text = (
+                "⚠️ <b>Heads up!</b>\n\n"
+                "These members didn't join yet 👀\n"
+                f"{missing}\n\n"
+                "🚨 I can't track them properly.\n\n"
+                "💡 <b>Fix:</b>\n"
+                "👉 simply say <b>hi</b> / <b>hello</b> in this group\n"
+                f"👉 Or <a href=\"{bot_link}\">Open bot</a> and send <code>/start</code>\n"
+            )
+
+    # ───────────────── MAIN MESSAGE ───────────────── #
+
+    if len(all_users) == 1:
+        intro = random.choice(solo_lines)
+
+        message = (
+            "🚀 <b>Project Locked In!</b>\n\n"
+
+            f"😎 {intro}\n"
+            f"🏷️ <b>{team_name}</b>\n\n"
+
+            f"🧠 <b>What you're building:</b> {topic}\n\n"
+            f"⚙️ <b>Tech Stack:</b> {tech}\n\n"
+
+            f"📂 <b>Repository:</b> "
+            f"<a href=\"{github_repo}\">Open Repo 🔗</a>\n\n"
+
+            f"⏳ <b>Deadline:</b> {deadline} days\n"
+            f"📅 <b>Finish by:</b> {deadline_as_date}"
+        )
+
+    else:
+        intro = random.choice(team_lines)
+
+        message = (
+            "🚀 <b>Project Locked In!</b>\n\n"
+
+            f"😎 {intro}\n"
+            f"🏷️ <b>{team_name}</b>\n\n"
+
+            f"🧠 <b>What you're building:</b> {topic}\n\n"
+            f"⚙️ <b>Tech Stack:</b> {tech}\n\n"
+
+            f"📂 <b>Repository:</b> "
+            f"<a href=\"{github_repo}\">Open Repo 🔗</a>\n\n"
+
+            f"⏳ <b>Deadline:</b> {deadline} days\n"
+            f"📅 <b>Finish by:</b> {deadline_as_date}"
+
+        )
+
+    # ───────────────── FINAL OUTPUT ───────────────── #
+
+    full_msg = message + ("\n\n" + warning_text if warning_text else "")
+
+    await update.effective_message.reply_text(
+        full_msg,
+        parse_mode="HTML",
+        disable_web_page_preview=True
+    )
+
+
+sanitized_date = 20260416
 
 
 async def check_msg(msg_date, update, context):
@@ -502,10 +492,10 @@ async def check_msg(msg_date, update, context):
 
 
 async def grp_msg(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    print(
-        f'args:{update.message.text} user: name: {update.message.from_user.username} id:{update.message.from_user.id}\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx')
     current_id = update.message.chat.id
     if zero_dev_grp_id == current_id:
+        print(
+            f'args:{update.message.text} user: name: {update.message.from_user.username} id:{update.message.from_user.id}\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx')
         chat_usr = await context.bot.get_chat(chat_id=update.message.from_user.id)
         is_user_updated = await db_management.dbops('update_dev_detail_if_found',
                                                     [update.message.from_user.id, chat_usr])
@@ -665,6 +655,18 @@ async def join_grp(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 #         print('after'
 
 async def finished_project(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    args = context.args
+
+    # ❌ If no args OR not "true"
+    if not args or args[0].lower() != "true":
+        await update.message.reply_text(
+            "⚠️ <b>Confirmation required</b>\n\n"
+            "If you accidentally tapped, I ignored it 👍\n\n"
+            "If you really finished your project:\n"
+            "<code>/finished_project true</code>",
+            parse_mode="HTML"
+        )
+        return
     # date = str(update.message.date)
     # date = date[:10]
     # sanitized_date = int(f'{date}'.replace('-', ''))
@@ -902,7 +904,232 @@ async def finished_project(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
 
 async def help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    print('hai')
+    command = update.message.text.split()[0].lower()
+
+    # ───────────────── MAIN ───────────────── #
+    if command == "/help":
+        text = (
+            "🚀 <b>Commitio Help Center</b>\n\n"
+
+            "Choose a section 👇\n\n"
+
+            "📘 <b>/help_basic</b>\n"
+            "→ Quick start guide\n\n"
+
+            "📖 <b>/full_guidance</b>\n"
+            "→ Complete system walkthrough\n\n"
+
+            "⚙️ <b>/help_commands</b>\n"
+            "→ All commands list\n\n"
+
+            "🧠 <b>/help_advanced</b>\n"
+            "→ Rules, points & system\n\n"
+
+            "💡 Tip:\n"
+            "Start with <b>/help_basic</b>, then explore <b>/full_guidance</b>"
+        )
+
+    # ───────────────── BASIC ───────────────── #
+    elif command == "/help_basic":
+        text = (
+            "📘 <b>Quick Start Guide</b>\n\n"
+
+            "🧠 <b>Create Team</b>\n\n"
+            "<code>@mention_me /new \n/deadline 14 \n/topic your idea \n/tech mern stack \nhttps://github.com/repo \n@dev mentions</code>\n\n"
+
+            "💡 New to Git? Skip repo with:\n"
+            "<code>starter-dev: true</code>\n\n"
+
+            "📅 <b>Daily Update</b>\n"
+            "<code>update: what you built</code>\n\n"
+
+            "🏁 <b>Finish</b>\n"
+            "<code>/finished_project true</code>\n\n"
+
+            "🔥 Build daily. Stay consistent."
+        )
+    # ───────────────── COMMANDS ───────────────── #
+    elif command == "/help_commands":
+        text = (
+            "⚙️ <b>Commands Reference</b>\n\n"
+
+            "━━━━━━━━━━━━━━━━━━━\n"
+            "🧠 <b>Core Commands</b>\n"
+            "━━━━━━━━━━━━━━━━━━━\n"
+            "<code>@mention_me /new</code> → Create a new team\n"
+            "<code>/finished_project</code> → Mark project as completed\n\n"
+
+            "━━━━━━━━━━━━━━━━━━━\n"
+            "📘 <b>Help & Guides</b>\n"
+            "━━━━━━━━━━━━━━━━━━━\n"
+            "<code>/help</code> → Open help center\n"
+            "<code>/help_basic</code> → Quick start guide\n"
+            "<code>/full_guidance</code> → Complete system walkthrough\n"
+            "<code>/help_advanced</code> → Rules & points system\n"
+            "<code>/help_commands</code> → View all commands\n\n"
+
+            "━━━━━━━━━━━━━━━━━━━\n"
+            "⏳ <b>Extensions</b>\n"
+            "━━━━━━━━━━━━━━━━━━━\n"
+            "Extend your deadline (once only):\n"
+            "<code>extend 7</code> → Add 7 days\n"
+            "<code>extend 14</code> → Add 14 days\n"
+        )
+
+    # ───────────────── ADVANCED ───────────────── #
+    elif command == "/help_advanced":
+        text = (
+            "🧠 <b>Advanced System Overview</b>\n\n"
+
+            "━━━━━━━━━━━━━━━━━━━\n"
+            "📦 <b>Batch Lifecycle</b>\n"
+            "━━━━━━━━━━━━━━━━━━━\n"
+            "Each batch follows 3 phases:\n\n"
+            "• <b>Planning Phase</b> → Create teams\n"
+            "• <b>Project Phase</b> → Build & send updates\n"
+            "• <b>Clean-up Day</b> → Final wrap-up\n\n"
+
+            "⚠️ Teams can only be created during Planning Phase\n\n"
+
+            "━━━━━━━━━━━━━━━━━━━\n"
+            "🏆 <b>Points & Progress</b>\n"
+            "━━━━━━━━━━━━━━━━━━━\n"
+            "Your performance is tracked through:\n\n"
+            "• <b>Daily Updates</b> → Earn points\n"
+            "• <b>Consistency</b> → Builds streak\n"
+            "• <b>Project Completion</b> → Bonus reward\n"
+            "• <b>Missing updates</b> → Affects streak ⚠️\n\n"
+
+            "━━━━━━━━━━━━━━━━━━━\n"
+            "⏳ <b>Deadline Extension</b>\n"
+            "━━━━━━━━━━━━━━━━━━━\n"
+            "If needed, you can extend your deadline:\n\n"
+            "<code>extend 7</code> or <code>extend 14</code>\n\n"
+
+            "⚠️ Rules:\n\n"
+            "• Only <b>one extension</b> allowed\n"
+            "• Extension reduces your points ❌\n\n"
+
+            "━━━━━━━━━━━━━━━━━━━\n"
+        )
+
+    elif command == "/full_guidance":
+        text = (
+            "📘 <b>Complete Guide — How This System Works</b>\n\n"
+
+            "━━━━━━━━━━━━━━━━━━━\n"
+            "🧠 <b>1. Create a Team (During Planning Phase)</b>\n"
+            "━━━━━━━━━━━━━━━━━━━\n"
+
+            "Use this format:\n\n"
+
+            "<code>/new /deadline 14 /topic your idea /tech flutter https://github.com/repo @dev</code>\n\n"
+
+            "📌 <b>Explanation:</b>\n"
+            "• <b>/deadline</b> → Project duration (14 / 17 / 26 days)\n"
+            "• <b>/topic</b> → What you're building\n"
+            "• <b>/tech</b> → Tools / languages used\n"
+            "• <b>GitHub</b> → Your project repo\n"
+            "• <b>@dev</b> → Teammates (optional)\n\n"
+
+            "💡 <b>Starter Dev Option</b>\n"
+            "If you're new and still learning Git, you can skip adding a repo using:\n"
+            "<code>starter-dev: true</code>\n\n"
+
+            "━━━━━━━━━━━━━━━━━━━\n"
+            "📅 <b>2. Daily Updates (Consistency)</b>\n"
+            "━━━━━━━━━━━━━━━━━━━\n"
+
+            "<code>eg: update: built login page</code>\n\n"
+
+            "• First update → daily log\n"
+            "• More messages → group activity\n"
+            "• No update → affects streak ⚠️\n\n"
+
+            "━━━━━━━━━━━━━━━━━━━\n"
+            "⏳ <b>3. Project Phase</b>\n"
+            "━━━━━━━━━━━━━━━━━━━\n"
+
+            "• Build daily\n"
+            "• Stay consistent → earn points\n\n"
+
+            "━━━━━━━━━━━━━━━━━━━\n"
+            "🏁 <b>4. Finish</b>\n"
+            "━━━━━━━━━━━━━━━━━━━\n"
+
+            "<code>/finished_project true</code>\n\n"
+
+            "⚠️ Confirmation required to avoid mistakes\n\n"
+
+            "━━━━━━━━━━━━━━━━━━━\n"
+            "💡 <b>Goal</b>\n"
+            "━━━━━━━━━━━━━━━━━━━\n"
+
+            "• Build real projects\n"
+            "• Stay consistent\n"
+            "• Improve through execution\n\n"
+
+            "🚀 Now Code Your Dreams."
+        )
+    else:
+        text = "❌ Unknown command"
+
+    await update.effective_message.reply_text(
+        text,
+        parse_mode="HTML",
+        disable_web_page_preview=True
+    )
+
+
+def format_date(date_int):
+    return datetime.strptime(str(date_int), "%Y%m%d").strftime("%Y-%m-%d")
+
+
+async def batch_details(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    getstatus = await db_management.dbops('get_current_batch', '')
+
+    print(f'batch :{getstatus[0]}')
+    if not getstatus:
+        await update.message.reply_text(
+            "❌ <b>No active batch right now</b>",
+            parse_mode="HTML"
+        )
+        return
+
+    batch = getstatus
+
+    # unpack (based on your table)
+    batch_id = batch[0]
+    planning_date = batch[1]
+    deadline_days = batch[3]
+    is_extended = batch[4]
+    deadline_date = batch[5]
+    project_start = batch[6]
+    cleanup_day = batch[7]
+
+    # format extension
+    ext_text = "✅ Yes" if is_extended else "❌ No"
+
+    message = (
+        "📦 <b>Current Batch Details</b>\n\n"
+
+        "━━━━━━━━━━━━━━━━━━━\n"
+        f"⭐ <b>Batch Started :</b> {format_date(batch_id)}\n"
+        f"🗓️ <b>Planning End Date:</b> {format_date(planning_date)}\n\n"
+
+        "🚀 <b>Phases</b>\n\n"
+        f"• Project Start → {format_date(project_start)}\n"
+        f"• Batch Deadline → {format_date(deadline_date)}\n"
+        f"• Clean-up Day → {format_date(cleanup_day)}\n\n"
+
+        f"⏳ <b>Duration:</b> {deadline_days} days\n\n"
+        "━━━━━━━━━━━━━━━━━━━\n"
+    )
+
+    await update.message.reply_text(
+        message,
+        parse_mode="HTML"
+    )
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -912,18 +1139,77 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     print(f' id: {update.effective_chat.id} user: {update.message.chat} and {update.message.text}')
 
 
+async def rules(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    text = (
+        "📜 <b>Commitio Group Rules</b>\n\n"
+
+        "━━━━━━━━━━━━━━━━━━━\n"
+        "🤝 <b>Respect First</b>\n"
+        "━━━━━━━━━━━━━━━━━━━\n"
+        "• Respect all developers\n"
+        "• No toxic behavior or harassment ❌\n\n"
+
+        "━━━━━━━━━━━━━━━━━━━\n"
+        "💬 <b>Keep It Relevant</b>\n"
+        "━━━━━━━━━━━━━━━━━━━\n"
+        "• Discussions should be mostly tech-related\n"
+        "• Avoid unnecessary or off-topic chats\n\n"
+
+        "━━━━━━━━━━━━━━━━━━━\n"
+        "🚫 <b>No Bad Language</b>\n"
+        "━━━━━━━━━━━━━━━━━━━\n"
+        "• No abusive or offensive words\n"
+        "• Keep communication clean & professional\n\n"
+
+        "━━━━━━━━━━━━━━━━━━━\n"
+        "📢 <b>No Spam</b>\n"
+        "━━━━━━━━━━━━━━━━━━━\n"
+        "• No promotions / ads\n"
+        "• No irrelevant links\n\n"
+
+        "━━━━━━━━━━━━━━━━━━━\n"
+        "⚡ <b>Stay Productive</b>\n"
+        "━━━━━━━━━━━━━━━━━━━\n"
+        "• Focus on building & learning\n"
+        "• Share progress, not noise\n\n"
+
+        "━━━━━━━━━━━━━━━━━━━\n"
+        "🎯 <b>Goal</b>\n"
+        "━━━━━━━━━━━━━━━━━━━\n"
+        "Build together. Grow together. 🚀"
+    )
+
+    await update.effective_message.reply_text(
+        text,
+        parse_mode="HTML"
+    )
+
 def pybot():
     if TELEGRAM_BOT_TOKEN_TEST is None:
         raise ValueError("TELEGRAM_BOT_TOKEN is not set")
+
     application = Application.builder().token(TELEGRAM_BOT_TOKEN_TEST).build()
+
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("help", help))
     application.add_handler(CommandHandler("join", join_grp))
     application.add_handler(CommandHandler("grp", create_batch_group))
     application.add_handler(CommandHandler("finished_project", finished_project))
+    application.add_handler(CommandHandler("batch_details", batch_details))
+
     grp_msg_handler = MessageHandler(filters.TEXT & (~filters.COMMAND), grp_msg)
     application.add_handler(grp_msg_handler)
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+
+    application.add_handler(CommandHandler("help", help))
+    application.add_handler(CommandHandler("help_basic", help))
+    application.add_handler(CommandHandler("help_commands", help))
+    application.add_handler(CommandHandler("help_advanced", help))
+    application.add_handler(CommandHandler("full_guidance", help))
+    application.add_handler(CommandHandler("grp_rules", rules))
+
+    try:
+        application.run_polling(allowed_updates=Update.ALL_TYPES)
+    except KeyboardInterrupt:
+        print("🛑 Bot stopped cleanly")
 
 
 pybot()
