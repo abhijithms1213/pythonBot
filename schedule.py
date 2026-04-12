@@ -139,7 +139,7 @@ async def process_weekly_report(first_as_int, second_as_int, is_from_between: bo
 
         report += (
             f"<b>{i}.</b> {user_tag} — "
-            f"<b>{point_display}</b> "
+            f"<b>{point_display} Pts</b> "
             f"({dev['active_days']} days){streak_tag}\n"
         )
 
@@ -157,10 +157,15 @@ def format_users(users):
 
         mention = f'<a href="tg://user?id={tele_id}">{name}</a>'
 
+        # removed streak and team name and points because when added finished, already finished so values are empty so everthing will be 0
+        # so for current phase i hided points next phase : we can join devs_history and add
+        # formatted.append(
+        #     f"{i}. {mention}\n"
+        #     f"🧠 Streak: {streak} | ⭐ Points: {points}\n"
+        #     f"👥 Team: {team_name or 'No Team'}"
+        # )
         formatted.append(
             f"{i}. {mention}\n"
-            f"🧠 Streak: {streak} | ⭐ Points: {points}\n"
-            f"👥 Team: {team_name or 'No Team'}"
         )
 
     return "\n\n".join(formatted)
@@ -169,7 +174,7 @@ def format_users(users):
 async def lets_clean_all(context: ContextTypes.DEFAULT_TYPE, update: Update):
     today = datetime.now().date()
     today_as_int = int(today.strftime("%Y%m%d"))
-    today_as_int = 20260508
+    today_as_int = 20260509
 
     getstatus = await db_management.dbops('check_is_msg_under_planning_phase', [today_as_int])
     print(f'\n BATCH: {getstatus}')
@@ -191,13 +196,13 @@ async def lets_clean_all(context: ContextTypes.DEFAULT_TYPE, update: Update):
 
                 "🏁 <b>Batch Report</b>\n\n"
 
-                "🏆 <b>Finished Users</b>\n"
+                "🏆 <b>Finished Users</b>\n\n"
                 f"{format_users(finished)}\n\n"
 
-                "⚠️ <b>Not Finished (Deadline Over)</b>\n"
+                "⚠️ <b>Not Finished (Deadline Over)</b>\n\n"
                 f"{format_users(not_finished_not_extended)}\n\n"
 
-                "⏳ <b>Extended Users</b>\n"
+                "⏳ <b>Extended Users</b>\n\n"
                 f"{format_users(not_finished_extended)}\n\n"
 
                 "━━━━━━━━━━━━━━━━━━━━━━"
@@ -266,7 +271,10 @@ async def weekly_report(context: ContextTypes.DEFAULT_TYPE):
     print(f'batch: {type(getstatus[1])} {type(getstatus[0])}')
     print(f'{getstatus}')
     # today
+
+    sanitized_date = 20260521
     today = datetime.now().date()
+    today = datetime.strptime(str(sanitized_date), "%Y%m%d").date()
 
     # first week
     # today = datetime.now().date() + timedelta(days=9)
@@ -284,6 +292,8 @@ async def weekly_report(context: ContextTypes.DEFAULT_TYPE):
     # today = datetime.now().date() + timedelta(days=29)
 
     today_as_int = int(today.strftime("%Y%m%d"))
+
+    today_as_int = sanitized_date
     start = getstatus[6]  # start date
     deadline = getstatus[3]  # start date
 
@@ -519,7 +529,7 @@ async def daily_update(context: ContextTypes.DEFAULT_TYPE):
     print(f'yest : {yesterday}')
     today_as_int = int(today.strftime("%Y%m%d"))
     yesterday_as_int = int(yesterday.strftime("%Y%m%d"))
-    yesterday_as_int = 20260422  # testing purpose
+    yesterday_as_int = 20260504  # testing purpose
     print(f'day as str {today_as_int} yes :{yesterday_as_int}')
 
     if getstatus is None:
