@@ -1,6 +1,10 @@
-from telegram import Update
+import asyncio
+
+from telegram import Update, ReactionTypeEmoji
 from datetime import datetime, timedelta
 import re
+
+from telegram.error import TimedOut, NetworkError
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 import operator as op
 from telegram.constants import MessageEntityType
@@ -12,29 +16,42 @@ import db_management
 async def mention_check(update: Update, context: ContextTypes.DEFAULT_TYPE):
     mentions = []
     message = update.effective_message
+
+    bot_username = context.bot.username
+    sender_id = update.message.from_user.id
+
     if message.entities:
         for entity in message.entities:
-            if entity.type == MessageEntityType.TEXT_MENTION:
-                user = entity.user  # This will be the telegram.User object
-                if user:
-                    await message.reply_text(f"User mentioned: {user.first_name} (ID: {user.id})")
-                    print('inside normal mention')
-                    mentions.append(user.id)
-            elif entity.type == MessageEntityType.MENTION:
-                # For regular @username mentions, you only get the text
-                mention_text = message.parse_entity(entity)
-                await message.reply_text(f"Username mentioned: {mention_text}")
 
-                user = await db_management.dbops('check_is_user_already_exist_in_user_db',
-                                                 mention_text)
+            if entity.type == MessageEntityType.TEXT_MENTION:
+                user = entity.user
                 if user:
-                    print(f'found user {user}')
-                    mentions.append(f'{user}')
+                    if user.username == bot_username:
+                        continue
+                    mentions.append(user.id)
+
+            elif entity.type == MessageEntityType.MENTION:
+                mention_text = message.parse_entity(entity)
+
+                if mention_text.lower() == f"@{bot_username.lower()}":
+                    continue
+
+                user = await db_management.dbops(
+                    'check_is_user_already_exist_in_user_db',
+                    mention_text
+                )
+
+                if user:
+                    mentions.append(user)
                 else:
-                    print('not found in db about user')
                     mentions.append(mention_text)
 
-    # mentions.append(update.message.from_user.id)
+    if sender_id not in mentions:
+        mentions.append(sender_id)
+
+    # ✅ remove duplicates (important)
+    mentions = list(set(mentions))
+
     return mentions
 
 
@@ -264,6 +281,7 @@ async def project_phase(msg_date, update: Update, context: ContextTypes.DEFAULT_
     status, isFinishedFromUser, deadline_as_date, is_extended, ext_date = await db_management.dbops(
         'check_team_under_batch',
         [current_batch[0], user_id])
+    team_current_ext_date = ext_date
     print(f'status is : {status}')
     if status is None:
         print('no user found in db so not need to record')
@@ -300,6 +318,13 @@ async def project_phase(msg_date, update: Update, context: ContextTypes.DEFAULT_
                         return 'done'
                     else:
                         print('already extended u before......')
+                        # ✅ 🔥 USER-FACING MESSAGE
+                        await update.message.reply_text(
+                            f"⚠️ <b>Extension already used and {datetime.strptime(str(team_current_ext_date), '%Y%m%d').date()} Date.</b>\n\n"
+                            "You can extend deadline only <b>once</b>.\n"
+                            "💡 Try to complete within your current timeline 💪",
+                            parse_mode="HTML"
+                        )
                         return 'not_updated_something_wrong'
                 else:
                     print('msged after deadline, but its ok we can extend with todays date, not from deadline')
@@ -324,6 +349,13 @@ async def project_phase(msg_date, update: Update, context: ContextTypes.DEFAULT_
                         return 'done'
                     else:
                         print('already extended u before')
+                        # ✅ 🔥 USER-FACING MESSAGE
+                        await update.message.reply_text(
+                            f"⚠️ <b>Extension already used and {datetime.strptime(str(team_current_ext_date), '%Y%m%d').date()} Date.</b>\n\n"
+                            "You can extend deadline only <b>once</b>.\n"
+                            "💡 Try to complete within your current timeline 💪",
+                            parse_mode="HTML"
+                        )
                         return 'not_updated_something_wrong'
             else:
                 print('u cant update , u finished project')
@@ -339,55 +371,96 @@ async def project_phase(msg_date, update: Update, context: ContextTypes.DEFAULT_
             else:
                 print('the msg is not under deadline and u didnt extended also')
                 return 'date_after_extension'
-        if not isFinishedFromUser == 1 or is_all_ok:
-            print('entered recording section in project phase')
-            # checks is user's data already here in logs with current date
-            is_user = await db_management.dbops('daily_activity_record_check_record', [user_id, sanitized_date])
-            print(f'user :{is_user} ')
-            if not is_user:
-                print('user is empty coz list is empty')
-                match = re.search(r'update:\s*(.*)', msg_lower, re.DOTALL)
-                # if user's 1st msg in that day is update: then this
-                if match:
-                    #
-                    message = match.group(1).strip()
-                    print(f'update msg: {message} and length {len(message)}')
-                    status_ret = await db_management.dbops('add_daily_update_in_logs',
-                                                           [sanitized_date, user_id, user_name_ret, message,
-                                                            0, team_id_ret, is_extended
-                                                            ])  # last 0 means first entry
-                    return True
+
+        try:
+            if not isFinishedFromUser == 1 or is_all_ok:
+                print('entered recording section in project phase')
+
+                is_user = await db_management.dbops(
+                    'daily_activity_record_check_record',
+                    [user_id, sanitized_date]
+                )
+
+                if not is_user:
+                    match = re.search(r'update:\s*(.*)', msg_lower, re.DOTALL)
+
+                    if match:
+                        message = match.group(1).strip()
+
+                        status_ret = await db_management.dbops(
+                            'add_daily_update_in_logs',
+                            [sanitized_date, user_id, user_name_ret, message, 0, team_id_ret, is_extended]
+                        )
+
+                        if status_ret:
+                            try:
+                                await asyncio.sleep(0.5)
+                                await context.bot.set_message_reaction(
+                                    chat_id=update.effective_chat.id,
+                                    message_id=update.message.message_id,
+                                    reaction=[ReactionTypeEmoji("👍")]
+                                )
+                                return True
+                            except Exception as e:
+                                print(f"Reaction failed: {e}")
+
+                    else:
+                        is_updated = await db_management.dbops(
+                            'add_activity_msg_first_entry_today',
+                            [user_id, msg, sanitized_date, user_name_ret, 0, team_id_ret, is_extended]
+                        )
+                        if is_updated:
+                            return True
 
                 else:
-                    is_updated = await  db_management.dbops('add_activity_msg_first_entry_today',
-                                                            [user_id, msg, sanitized_date, user_name_ret,
-                                                             0, team_id_ret, is_extended
-                                                             ])  # last 0 means first entry
+                    match = re.search(r'update:\s*(.*)', msg_lower, re.DOTALL)
 
-                    if is_updated:
-                        print('its not update msg its daily activity')
-                        return True
+                    if match:
+                        message = match.group(1).strip()
+
+                        is_updated = await db_management.dbops(
+                            'add_daily_update_in_logs',
+                            [sanitized_date, user_id, user_name_ret, message, 1, team_id_ret, is_extended]
+                        )
+
+                        if is_updated:
+                            try:
+                                await asyncio.sleep(0.5)
+                                await context.bot.set_message_reaction(
+                                    chat_id=update.effective_chat.id,
+                                    message_id=update.message.message_id,
+                                    reaction=[ReactionTypeEmoji("👍")]
+                                )
+                                return True
+                            except Exception as e:
+                                print(f"Reaction failed: {e}")
+
+                    else:
+                        await db_management.dbops(
+                            'add_activity_msg_first_entry_today',
+                            [user_id, msg, sanitized_date, user_name_ret, 1, team_id_ret, is_extended]
+                        )
+
+                return True
+
             else:
-                #  it's not first msg so already tuple added in daily_log table
-                print('the else worked means user doc found in daily_logs')
-                match = re.search(r'update:\s*(.*)', msg_lower, re.DOTALL)
-                if match:
-                    message = match.group(1).strip()
-                    is_updated = await db_management.dbops('add_daily_update_in_logs',
-                                                           [sanitized_date, user_id, user_name_ret, message,
-                                                            1,
-                                                            team_id_ret, is_extended
-                                                            ])  # 0,0 is user_name last 0 means first entry
-                    if is_updated:
-                        print(f'it"s after first update msg: {message} and length {len(message)}')
-                        return True
-                else:
-                    activity_status = await db_management.dbops('add_activity_msg_first_entry_today',
-                                                                [user_id, msg, sanitized_date, user_name_ret,
-                                                                 1, team_id_ret, is_extended
-                                                                 ])  # last 0 means first entry
-                    print('msg after first record it"s activity')
-            return True
-        else:
-            print('user already finished project so not updating')
+                print('user already finished project')
+                return False
+
+        # ✅ 🔥 MAIN FIX
+        except (TimedOut, NetworkError) as e:
+            print(f"Telegram timeout/network error: {e}")
+
+            await update.message.reply_text(
+                "⚠️ Please try again — some technical issue on our side."
+            )
+            return False
+
+        # ✅ Catch any unexpected crash
+        except Exception as e:
+            print(f"Unexpected error: {e}")
+
+            await update.message.reply_text(
+                "⚠️ Something went wrong. Please try again later."
+            )
             return False

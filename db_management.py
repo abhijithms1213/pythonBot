@@ -69,6 +69,24 @@ async def check_team_under_batch(args, cursor):
         return result, result[0][4], result[0][5], result[0][6], result[0][7]
 
 
+async def dev_suggestions_add(args, cursor):
+    msg_date = args[0]
+    dev_id = args[1]
+    dev_name = args[2]
+    query_txt = args[3]
+
+    if not query_txt:
+        return False
+
+    insert_query = """
+    INSERT INTO dev_suggestions (Date, tele_id, dev_name, query)
+    VALUES (?, ?, ?, ?);
+    """
+
+    cursor.execute(insert_query, (msg_date, dev_id, dev_name, query_txt))
+    return True
+
+
 def check_any_batches_running(cursor):
     query = '''
     select * from batches where isCurrent = 1;
@@ -237,7 +255,7 @@ def add_new_user_to_db(args: list, cursor):
     else:
         user_name = f'@{user_name}'
     query = f'''
-    insert into devs values ('{user_id}','{user_name}','{user_fullname}','{user_first_name}',0,0,0,0);
+    insert into devs values ('{user_id}','{user_name}','{user_fullname}','{user_first_name}',NULL,NULL,0,0,0,0,0);
     '''
     cursor.execute(query)
     query = f'''
@@ -252,48 +270,67 @@ def add_new_user_to_db(args: list, cursor):
 async def check_is_user_already_present_and_update_if_yes(args, cursor):
     user_id = args[0]
     context: ContextTypes.DEFAULT_TYPE = args[1]
+
     chat_usr = await context.bot.get_chat(chat_id=user_id)
+
     first_name = chat_usr.first_name
     fullname = chat_usr.full_name
     user_name = chat_usr.username
-    print(f'user id : {user_id} type:{type(user_id)} name is {user_name} , first: {first_name},full : {fullname}')
-    included_username = f'@{user_name}'
 
-    query = f'''
-    select * from devs where tele_id = '{user_id}' or user_name = '{included_username}';
+    included_username = f'@{user_name}' if user_name else None
+
+    print(f'user id : {user_id}, username: {included_username}')
+
+    # ✅ Safe query
+    query = '''
+    SELECT * FROM devs 
+    WHERE tele_id = ? OR user_name = ?;
     '''
-    cursor.execute(query)
+    cursor.execute(query, (str(user_id), included_username))
     result = cursor.fetchone()
 
-    print(f'result {result} and ')
     if not result:
-        print('false as not found record so adding fresh user')
-        return [False, '']
-    else:
-        if str(user_id) == result[0]:  # means same id so already registered
-            print('record found returning')
-            return ['exist', result]
-        else:
-            print('else working in /join command means different')
-            query = f'''
-                update devs set tele_id= '{user_id}',user_fullname = '{fullname}',user_firstname= '{first_name}' where user_name = '{included_username}';
-            '''
-            cursor.execute(query)
-            query = f'''
-                 select * from devs where user_name = '{included_username}';
-            '''
-            cursor.execute(query)
+        print('No record found → new user')
+        return [False, None]
 
-            query = f'''
-                select * from teams where team_id = '{result[5]}';
-            '''
-            cursor.execute(query)
-            # returning  wrong , combine two tables
-            result_team = cursor.fetchone()
+    # ✅ Case 1: Same user
+    if str(user_id) == result[0]:
+        print('User already exists')
+        return ['exist', result]
 
-            # print(f'resulted team {result_teams}')
-            return ['updated_old', result_team, first_name,
-                    result[5]]  # result means user's data , and take the team id from it
+    # ✅ Case 2: Username match, ID changed
+    print('Username exists but ID different → updating')
+
+    update_query = '''
+    UPDATE devs 
+    SET tele_id = ?, user_fullname = ?, user_firstname = ?
+    WHERE user_name = ?;
+    '''
+    cursor.execute(update_query, (
+        str(user_id),
+        fullname,
+        first_name,
+        included_username
+    ))
+
+    # ✅ Get team info using team_id from old result
+    team_id = result[5]
+
+    team_query = '''
+    SELECT * FROM teams WHERE team_id = ?;
+    '''
+    cursor.execute(team_query, (team_id,))
+    team_data = cursor.fetchone()
+
+    # ✅ Return structured clean data
+    return [
+        'updated',
+        {
+            "user": result,
+            "team": team_data,
+            "first_name": first_name
+        }
+    ]
 
 
 async def add_dev_to_db(args, cursor):
@@ -616,16 +653,39 @@ async def add_daily_update_in_logs(args, cursor):
     print(f'rexx: {result} and {point_earned}')
 
     if not result or not result[0] == 1:
-        if check_entry == 0:  # means the today's first msg is update , 1 means after first entry
-            query = f'''
-            insert into daily_logs (Date,tele_id,isUpdated,Activity,MsgLen,UserName,UpdateText,team_id) values ({msg_date},'{user_id}',1,0,0,'{user_name}','{msg_content}',{team_id});
+        if check_entry == 0:  # first update of the day
+
+            insert_query = '''
+            INSERT INTO daily_logs 
+            (Date, tele_id, isUpdated, Activity, MsgLen, UserName, UpdateText, team_id) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?);
             '''
 
-            cursor.execute(query)
-            result = cursor.fetchone()
+            cursor.execute(insert_query, (
+                msg_date,
+                str(user_id),
+                1,  # isUpdated
+                0,  # Activity
+                len(msg_content),  # MsgLen (better than 0)
+                user_name,
+                msg_content,
+                team_id
+            ))
 
+            # ❌ REMOVE THIS (invalid)
+            # result = cursor.fetchone()
+
+            # ✅ Update points
             point = await update_daily_point(
-                [0, user_id, user_name, team_id, point_earned, msg_date, is_extended],
+                [
+                    0,
+                    user_id,
+                    user_name,
+                    team_id,
+                    point_earned,
+                    msg_date,
+                    is_extended
+                ],
                 cursor
             )
         else:
@@ -1118,7 +1178,8 @@ async def clean_up_batch_end(args, cursor):
             weekly_streak = 0,
             total_points = 0,
             streak_cycles = 0,
-            streak = 0
+            streak = 0,
+            isFinished = 0
             WHERE team_id IN (
                 SELECT team_id
                 FROM teams
@@ -1293,7 +1354,7 @@ async def update_dev_detail_if_found(args, cursor):
     first_name = chat_usr.first_name
     fullname = chat_usr.full_name
     user_name = chat_usr.username
-    include_user_name = f'@{user_name}'
+    include_user_name = f'@{user_name}' if user_name else None
     print(
         f'user id : {user_id} type:{type(user_id)} name is {user_name} and include: {include_user_name}, first: {first_name},full : {fullname}')
 
@@ -1439,7 +1500,8 @@ async def dbops(operation, args):
             return await clean_up_batch_end(args, cursor)
         if operation == 'get_log_combined_for_week_update':
             return await get_log_combined_for_week_update(args, cursor)
-
+        if operation == 'dev_suggestions_add':
+            return await dev_suggestions_add(args, cursor)
 
     except Exception as e:
         print(f"[DB ERROR] {operation} → {e}")

@@ -1,7 +1,7 @@
 import random
 import asyncio
 
-from telegram import Update
+from telegram import Update, ReactionTypeEmoji
 
 import db_management
 
@@ -79,7 +79,8 @@ def get_random_solo_name() -> str:
     return random.choice(SOLO_NAMES)
 
 
-async def update_for_extended_devs(msg_date, update: Update, team_id_ret, user_name_ret):
+async def update_for_extended_devs(msg_date, update: Update, team_id_ret, user_name_ret, ext_bool,
+                                   context: ContextTypes.DEFAULT_TYPE):
     # checks is user's data already here in logs with current date
     sanitized_date = msg_date
 
@@ -99,13 +100,25 @@ async def update_for_extended_devs(msg_date, update: Update, team_id_ret, user_n
             print(f'update msg: {message} and length {len(message)}')
             status_ret = await db_management.dbops('add_daily_update_in_logs',
                                                    [sanitized_date, user_id, user_name_ret, message,
-                                                    0, team_id_ret])  # last 0 means first entry
+                                                    0, team_id_ret, ext_bool])  # last 0 means first entry
+
+            if status_ret:
+                try:
+                    await asyncio.sleep(0.5)
+                    await context.bot.set_message_reaction(
+                        chat_id=update.effective_chat.id,
+                        message_id=update.message.message_id,
+                        reaction=[ReactionTypeEmoji("👍")]
+                    )
+                    return True
+                except Exception as e:
+                    print(f"Reaction failed: {e}")
             return True
 
         else:
             is_updated = await  db_management.dbops('add_activity_msg_first_entry_today',
                                                     [user_id, msg, sanitized_date, user_name_ret,
-                                                     0, team_id_ret])  # last 0 means first entry
+                                                     0, team_id_ret, ext_bool])  # last 0 means first entry
 
             if is_updated:
                 print('its not update msg its daily activity')
@@ -119,14 +132,23 @@ async def update_for_extended_devs(msg_date, update: Update, team_id_ret, user_n
             is_updated = await db_management.dbops('add_daily_update_in_logs',
                                                    [sanitized_date, user_id, user_name_ret, message,
                                                     1,
-                                                    team_id_ret])  # 0,0 is user_name last 0 means first entry
+                                                    team_id_ret, ext_bool])  # 0,0 is user_name last 0 means first entry
             if is_updated:
-                print(f'it"s after first update msg: {message} and length {len(message)}')
-                return True
+                try:
+                    await asyncio.sleep(0.5)
+                    await context.bot.set_message_reaction(
+                        chat_id=update.effective_chat.id,
+                        message_id=update.message.message_id,
+                        reaction=[ReactionTypeEmoji("👍")]
+                    )
+                    return True
+                except Exception as e:
+                    print(f"Reaction failed: {e}")
+            return True
         else:
             activity_status = await db_management.dbops('add_activity_msg_first_entry_today',
                                                         [user_id, msg, sanitized_date, user_name_ret,
-                                                         1, team_id_ret])  # last 0 means first entry
+                                                         1, team_id_ret, ext_bool])  # last 0 means first entry
             print('msg after first record it"s activity')
     return True
 
