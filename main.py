@@ -585,24 +585,49 @@ async def grp_msg(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             print(f'found user didnt updated @ , now updated {is_user_updated[1]}')
 
         if update.message.text == 'weekly_report':
+            tele_uid = update.message.from_user.id
+            # check if am I sending the command
+            if tele_uid != tele_user_me:
+                return
             print('weekly report called')
             await schedule_py.weekly_report(context)
             return
         if update.message.text == 'clear_all':
+
+            tele_uid = update.message.from_user.id
+            # check if am I sending the command
+            if tele_uid != tele_user_me:
+                return
             await schedule_py.lets_clean_all(context, update)
             return
         if update.message.text == 'attention_msg':
+            tele_uid = update.message.from_user.id
+            # check if am I sending the command
+            if tele_uid != tele_user_me:
+                return
             await schedule_py.attention_msgs(context)
             return
 
         if update.message.text == 'daily_update':
+            tele_uid = update.message.from_user.id
+            # check if am I sending the command
+            if tele_uid != tele_user_me:
+                return
             await schedule_py.daily_update(context)
             return
 
         if update.message.text == 'notify_devs':
+            tele_uid = update.message.from_user.id
+            # check if am I sending the command
+            if tele_uid != tele_user_me:
+                return
             await schedule_py.notify_devs_to_update(context)
             return
         if update.message.text == 'mention':
+            tele_uid = update.message.from_user.id
+            # check if am I sending the command
+            if tele_uid != tele_user_me:
+                return
             chat_id = update.effective_chat.id
 
             # user_id_no_username = 1536580544  # aleena
@@ -741,7 +766,6 @@ async def join_grp(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             """,
             parse_mode="Markdown"
         )
-
 
 
 async def finished_project(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
