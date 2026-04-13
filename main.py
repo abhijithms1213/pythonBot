@@ -1,5 +1,5 @@
 from datetime import datetime
-
+import production_bool
 # if update.message.text == 'weekly_report':
 #     await schedule_py.weekly_report(context)
 # if update.message.text == 'clear_all':
@@ -26,7 +26,17 @@ import helpers as helpers_py
 load_dotenv()
 tele_user_me = int(os.getenv("TELEGRAM_USER_ME"))
 
-zero_dev_grp_id = -5287913183
+is_production = production_bool.is_production()
+
+# zero_dev_grp_id = -5287913183
+commitio_grp_id = -5287913183
+commitio_test_grp_id = -5251179553
+
+grp_id: int
+if is_production:
+    grp_id = commitio_grp_id
+else:
+    grp_id = commitio_test_grp_id
 
 batches = 'batches'
 # batches
@@ -69,6 +79,7 @@ dotenv.load_dotenv()
 import os
 
 TELEGRAM_BOT_TOKEN_TEST = os.getenv("TELEGRAM_BOT_TOKEN_TEST")
+TELEGRAM_BOT_TOKEN_COMMITIO = os.getenv("TELEGRAM_BOT_TOKEN_COMMITIO")
 
 district = {
     "brand": "Ford",
@@ -299,17 +310,19 @@ async def team_decl_call(is_success_status, update, context):
     )
 
 
-sanitized_date = 20260521
+# HARDCODED
+# sanitized_date = 20260520
 
 
 async def check_msg(msg_date, update, context):
     date_to_string = str(msg_date)
     date_only = date_to_string[:10]
-    # print(f"[INFO] msg date extracted: {date_only}")
+    print(f"[INFO] msg date extracted: {date_only}")
 
-    # extracted = int(date_only.replace('-', ''))
+    extracted = int(date_only.replace('-', ''))
 
-    extracted = sanitized_date  # override for testing
+    # HARDCODED
+    # extracted = sanitized_date  # override for testing
     print(f'\nextracted date: {extracted}\n\n')
 
     ret_status = await db_management.dbops(
@@ -561,7 +574,7 @@ async def check_msg(msg_date, update, context):
 async def grp_msg(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     current_id = update.message.chat.id
 
-    if zero_dev_grp_id == current_id:
+    if grp_id == current_id:
         print(
             f'args:{update.message.text} user: name: {update.message.from_user.username} id:{update.message.from_user.id}\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx')
         user = update.message.from_user
@@ -602,7 +615,7 @@ async def grp_msg(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             message_text = f'Hello <a href="tg://user?id={user_id}">{first_name}</a> 👋'
             # Send the message with HTML parse mode
             await context.bot.send_message(
-                chat_id=zero_dev_grp_id,
+                chat_id=grp_id,
                 text=message_text,
                 parse_mode=ParseMode.HTML
             )
@@ -612,7 +625,9 @@ async def grp_msg(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
         # await  context.bot.send_message(chat_id=zero_dev_grp_id, text='ok')
     else:
-        print(f'other chat :{update.message.text}')
+
+        current_id = update.message.chat.id
+        print(f'other chat :{update.message.text} and {current_id}')
         return
 
 
@@ -728,23 +743,13 @@ async def join_grp(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         )
 
 
-# async def common_str(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-#     date = str(update.message.date)
-#     date = date[:10]
-#     sanitized_date = int(f'{date}'.replace('-', ''))
-#     print(f'date : {date} sani : {sanitized_date}')
-#     status = await db_management.dbops('check_is_msg_under_planning_phase', sanitized_date)
-#
-#     if status[0] == 'no_batches_currently':
-#         print('no batch')
-#     elif status[0] == 'during_planning_phase':
-#         print('planning')
-#     elif status[0] == 'during_project_phase':
-#         print('project')
-#     elif status[0] == 'after_deadline':
-#         print('after'
 
 async def finished_project(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    current_id = update.message.chat.id
+
+    if not grp_id == current_id:
+        return
+
     args = context.args
 
     # ❌ If no args OR not "true"
@@ -757,12 +762,12 @@ async def finished_project(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             parse_mode="HTML"
         )
         return
-    # date = str(update.message.date)
-    # date = date[:10]
-    # sanitized_date = int(f'{date}'.replace('-', ''))
+    date = str(update.message.date)
+    date = date[:10]
+    sanitized_date = int(f'{date}'.replace('-', ''))
     # sanitized_date = 20260425  # override for testing
 
-    # print(f'date : {date} sani : {sanitized_date}')
+    print(f'date : {date} sani : {sanitized_date}')
     print(f'msg date in finished_section: {sanitized_date}')
     status = await db_management.dbops('check_is_msg_under_planning_phase', [sanitized_date, update, context])
 
@@ -1114,9 +1119,9 @@ async def help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
             "Use this format:\n\n"
 
-            "<code>/new \n/deadline 14 \n/topic your idea \n/tech MERN stack\nhttps://github.com/repo \n@dev</code>\n\n"
+            "<code>@mention_me /new \n/deadline 14 \n/topic your idea \n/tech MERN stack\nhttps://github.com/repo \n@dev</code>\n\n"
 
-            "📌 <b>Explanation:</b>\n"
+            "📌 <b>Explanation:</b>\n\n"
             "• <b>/deadline</b> → Project duration (14 / 17 / 26 days)\n"
             "• <b>/topic</b> → What you're building\n"
             "• <b>/tech</b> → Tools / languages used\n"
@@ -1303,7 +1308,7 @@ async def guide(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "Interested with tweaks ⚠️\n"
         "Not interested 🚫\n\n"
         "4️⃣ Form a team\n"
-        "5️⃣ Discuss separately\n"
+        "5️⃣ Discuss\n"
         "6️⃣ Finalize & announce"
         "</blockquote>\n\n"
 
@@ -1467,10 +1472,18 @@ async def rules(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 def pybot():
-    if TELEGRAM_BOT_TOKEN_TEST is None:
-        raise ValueError("TELEGRAM_BOT_TOKEN is not set")
+    print(f'production : {is_production}')
+    if is_production:
+        if TELEGRAM_BOT_TOKEN_COMMITIO is None:
+            raise ValueError("TELEGRAM_BOT_TOKEN_COMMITIO is not set")
+        token = TELEGRAM_BOT_TOKEN_COMMITIO
+    else:
+        if TELEGRAM_BOT_TOKEN_TEST is None:
+            raise ValueError("TELEGRAM_BOT_TOKEN_TEST is not set")
+        # token = TELEGRAM_BOT_TOKEN_TEST
+        token = TELEGRAM_BOT_TOKEN_COMMITIO
 
-    application = Application.builder().token(TELEGRAM_BOT_TOKEN_TEST).build()
+    application = Application.builder().token(token).build()
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("join", join_grp))

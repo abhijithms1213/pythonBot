@@ -268,6 +268,7 @@ async def project_phase(msg_date, update: Update, context: ContextTypes.DEFAULT_
     print(f'msg date: {msg_date}')
 
     # don't forget to replace below
+    # HARDCODED
     # sanitized_date = 20260411
 
     current_batch = current_batch
@@ -281,12 +282,12 @@ async def project_phase(msg_date, update: Update, context: ContextTypes.DEFAULT_
     status, isFinishedFromUser, deadline_as_date, is_extended, ext_date = await db_management.dbops(
         'check_team_under_batch',
         [current_batch[0], user_id])
-    team_current_ext_date = ext_date
     print(f'status is : {status}')
     if status is None:
         print('no user found in db so not need to record')
         return False
     else:
+        team_current_ext_date = ext_date
         user_doc = status[0]
         team_id_ret = user_doc[2]
         user_name_ret = user_doc[3]

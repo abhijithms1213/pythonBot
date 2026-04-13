@@ -62,9 +62,9 @@ async def check_team_under_batch(args, cursor):
     # checks is user found in this batch
     cursor.execute(query)
     result = cursor.fetchall()
-    # print(f'check team under and from raw user is :{result} and query: {query}')
+    print(f'check team under and from raw user is :{result} and query: {query}')
     if result is None or not result:
-        return None
+        return None, None, None, None, None
     else:
         return result, result[0][4], result[0][5], result[0][6], result[0][7]
 

@@ -37,6 +37,7 @@ from telegram.constants import MessageEntityType
 #     else:
 #         print('msg not under any')
 #         return [None, '']
+
 async def process_weekly_report(first_as_int, second_as_int, is_from_between: bool = None):
     if not is_from_between:
         empty = ''
@@ -174,7 +175,7 @@ def format_users(users):
 async def lets_clean_all(context: ContextTypes.DEFAULT_TYPE, update: Update):
     today = datetime.now().date()
     today_as_int = int(today.strftime("%Y%m%d"))
-    today_as_int = 20260509
+    # today_as_int = 20260509
 
     getstatus = await db_management.dbops('check_is_msg_under_planning_phase', [today_as_int])
     print(f'\n BATCH: {getstatus}')
@@ -272,9 +273,9 @@ async def weekly_report(context: ContextTypes.DEFAULT_TYPE):
     print(f'{getstatus}')
     # today
 
-    sanitized_date = 20260521
+    # sanitized_date = 20260521
     today = datetime.now().date()
-    today = datetime.strptime(str(sanitized_date), "%Y%m%d").date()
+    # today = datetime.strptime(str(sanitized_date), "%Y%m%d").date()
 
     # first week
     # today = datetime.now().date() + timedelta(days=9)
@@ -292,8 +293,8 @@ async def weekly_report(context: ContextTypes.DEFAULT_TYPE):
     # today = datetime.now().date() + timedelta(days=29)
 
     today_as_int = int(today.strftime("%Y%m%d"))
+    # today_as_int = sanitized_date
 
-    today_as_int = sanitized_date
     start = getstatus[6]  # start date
     deadline = getstatus[3]  # start date
 
@@ -364,59 +365,6 @@ async def weekly_report(context: ContextTypes.DEFAULT_TYPE):
                 text=report,
                 parse_mode='HTML'
             )
-            # get_ret = await  db_management.dbops('get_log_combined_for_week_update',
-            #                                      [start_as_int, first_week_as_int, ''])
-            # if not get_ret:
-            #     return 'no_records'
-            # else:
-            #     # print(f'return logs :{get_ret}')
-            #
-            #     dev_stats = {}
-            #
-            #     for log in get_ret:
-            #         date, points, tele_id, team_id, deadline, name, username = log
-            #
-            #         if tele_id not in dev_stats:
-            #             dev_stats[tele_id] = {
-            #                 'name': name,
-            #                 'username': username,
-            #                 'weekly_points': 0,
-            #                 'active_days': set(),
-            #                 'streak_point_earned': False
-            #             }
-            #
-            #         # ✅ Add daily points
-            #         dev_stats[tele_id]['weekly_points'] += points
-            #         # ✅ Track unique active days
-            #         dev_stats[tele_id]['active_days'].add(date)
-            #
-            #     for tele_id, dev in dev_stats.items():
-            #
-            #         dev_details = await db_management.dbops(
-            #             'get_one_dev_details',
-            #             [tele_id]
-            #         )
-            #
-            #         if not dev_details[0]:
-            #             continue
-            #
-            #         dev_data = dev_details[1][0]
-            #
-            #         weekly_streak = dev_data[10]  # your weekly streak column
-            #
-            #         bonus = 0
-            #
-            #         if weekly_streak >= 6:
-            #             bonus = 2
-            #             dev['streak_point_earned'] = True
-            #
-            #         total_week_points = dev['weekly_points'] + bonus
-            #
-            #         # ✅ Update DB (correct way)
-            #         await db_management.dbops(
-            #             'update_dev_points_and_cycle',
-            #             [tele_id, total_week_points, bonus]
-            #         )
 
         elif today == second_week:
             print(f'worked second, {second_week}')
@@ -529,7 +477,7 @@ async def daily_update(context: ContextTypes.DEFAULT_TYPE):
     print(f'yest : {yesterday}')
     today_as_int = int(today.strftime("%Y%m%d"))
     yesterday_as_int = int(yesterday.strftime("%Y%m%d"))
-    yesterday_as_int = 20260504  # testing purpose
+    # yesterday_as_int = 20260504  # testing purpose
     print(f'day as str {today_as_int} yes :{yesterday_as_int}')
 
     if getstatus is None:
