@@ -2,8 +2,19 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 import db_management
 from datetime import datetime, timedelta
+import production_bool
 
-zero_dev_grp_id = -5287913183
+# cu_grp_id = -5287913183
+commitio_grp_id = -5287913183
+commitio_test_grp_id = -5251179553
+
+is_production = production_bool.is_production()
+
+cu_grp_id: int
+if is_production:
+    cu_grp_id = commitio_grp_id
+else:
+    cu_grp_id = commitio_test_grp_id
 import helpers as helpers_py
 
 from telegram.constants import MessageEntityType
@@ -244,21 +255,21 @@ async def attention_msgs(context):
     # 🔔 1. Before planning ends (1 day before)
     if tomorrow_as_int == planning_date:
         await context.bot.send_message(
-            chat_id=zero_dev_grp_id,
+            chat_id=cu_grp_id,
             text="⚠️ Planning phase ends tomorrow. Get ready!"
         )
 
     # 🚀 2. Project start day
     if today_as_int == project_start:
         await context.bot.send_message(
-            chat_id=zero_dev_grp_id,
+            chat_id=cu_grp_id,
             text="🚀 Project starts today! Let's go!"
         )
 
     # ⏳ 3. Before deadline (1 day before)
     if tomorrow_as_int == deadline_as_date:
         await context.bot.send_message(
-            chat_id=zero_dev_grp_id,
+            chat_id=cu_grp_id,
             text="⏳ Deadline is tomorrow! Final push!"
         )
 
@@ -356,12 +367,12 @@ async def weekly_report(context: ContextTypes.DEFAULT_TYPE):
             if report == 'no_records':
                 await context.bot.send_message(
                     # chat_id=update.effective_chat.id,
-                    chat_id=zero_dev_grp_id,
+                    chat_id=cu_grp_id,
                     text="⚠️ No records for this week"
                 )
                 return 0
             await context.bot.send_message(
-                chat_id=zero_dev_grp_id,
+                chat_id=cu_grp_id,
                 text=report,
                 parse_mode='HTML'
             )
@@ -380,12 +391,12 @@ async def weekly_report(context: ContextTypes.DEFAULT_TYPE):
             if report == 'no_records':
                 await context.bot.send_message(
                     # chat_id=update.effective_chat.id,
-                    chat_id=zero_dev_grp_id,
+                    chat_id=cu_grp_id,
                     text="⚠️ No records for this week"
                 )
                 return 0
             await context.bot.send_message(
-                chat_id=zero_dev_grp_id,
+                chat_id=cu_grp_id,
                 text=report,
                 parse_mode='HTML'
             )
@@ -402,12 +413,12 @@ async def weekly_report(context: ContextTypes.DEFAULT_TYPE):
             if report == 'no_records':
                 await context.bot.send_message(
                     # chat_id=update.effective_chat.id,
-                    chat_id=zero_dev_grp_id,
+                    chat_id=cu_grp_id,
                     text="⚠️ No activity recorded for developers under the 17-day deadline."
                 )
                 return 0
             await context.bot.send_message(
-                chat_id=zero_dev_grp_id,
+                chat_id=cu_grp_id,
                 text=report,
                 parse_mode='HTML'
             )
@@ -425,12 +436,12 @@ async def weekly_report(context: ContextTypes.DEFAULT_TYPE):
             if report == 'no_records':
                 await context.bot.send_message(
                     # chat_id=update.effective_chat.id,
-                    chat_id=zero_dev_grp_id,
+                    chat_id=cu_grp_id,
                     text="⚠️ No records for this week"
                 )
                 return 0
             await context.bot.send_message(
-                chat_id=zero_dev_grp_id,
+                chat_id=cu_grp_id,
                 text=report,
                 parse_mode='HTML'
             )
@@ -447,12 +458,12 @@ async def weekly_report(context: ContextTypes.DEFAULT_TYPE):
             if report == 'no_records':
                 await context.bot.send_message(
                     # chat_id=update.effective_chat.id,
-                    chat_id=zero_dev_grp_id,
+                    chat_id=cu_grp_id,
                     text="⚠️ No records for this week"
                 )
                 return 0
             await context.bot.send_message(
-                chat_id=zero_dev_grp_id,
+                chat_id=cu_grp_id,
                 text=report,
                 parse_mode='HTML'
             )
@@ -552,7 +563,7 @@ async def daily_update(context: ContextTypes.DEFAULT_TYPE):
                     message += "\n"
             # 🔹 Send once
             await context.bot.send_message(
-                chat_id=zero_dev_grp_id,
+                chat_id=cu_grp_id,
                 text=message,
                 parse_mode="HTML"
             )
@@ -590,7 +601,7 @@ async def notify_devs_to_update(context: ContextTypes.DEFAULT_TYPE):
             final_msg = f"{random_msg}\n{mentions}"
 
             await context.bot.send_message(
-                chat_id=zero_dev_grp_id,
+                chat_id=cu_grp_id,
                 text=final_msg,
                 parse_mode="HTML"
             )
