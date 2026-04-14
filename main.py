@@ -311,7 +311,7 @@ async def team_decl_call(is_success_status, update, context):
 
 
 # HARDCODED
-# sanitized_date = 20260520
+# sanitized_date = 20260417
 
 
 async def check_msg(msg_date, update, context):
@@ -572,6 +572,21 @@ async def check_msg(msg_date, update, context):
 
 
 async def grp_msg(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    # ✅ HANDLE COMMANDS MANUALLY (Fix for /cmd@botname issue)
+    if update.message.text.startswith("/"):
+        command = update.message.text.split()[0].split("@")[0].lower()
+        if command in ["/help", "/help_basic", "/help_commands", "/help_advanced", "/full_guidance"]:
+            await help(update, context)
+            return
+
+        elif command == "/batch_details":
+            await batch_details(update, context)
+            return
+
+        elif command == "/grp_rules":
+            await rules(update, context)
+            return
+
     current_id = update.message.chat.id
 
     if grp_id == current_id:
@@ -1023,7 +1038,7 @@ async def finished_project(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
 
 async def help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    command = update.message.text.split()[0].lower()
+    command = update.message.text.split()[0].split("@")[0].lower()
 
     # ───────────────── MAIN ───────────────── #
     if command == "/help":
@@ -1159,7 +1174,8 @@ async def help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             "━━━━━━━━━━━━━━━━━━━\n"
             "📅 <b>2. Daily Updates (Consistency)</b>\n"
             "━━━━━━━━━━━━━━━━━━━\n"
-
+            "Update Formate: \nupdate: today's updates\n"
+            "━━━━━━━━━━\n"
             "<code>eg: update: built login page</code>\n\n"
 
             "• First update → daily log\n"
@@ -1207,13 +1223,14 @@ def format_date(date_int):
 async def batch_details(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     getstatus = await db_management.dbops('get_current_batch', '')
 
-    print(f'batch :{getstatus[0]}')
     if not getstatus:
         await update.message.reply_text(
             "❌ <b>No active batch right now</b>",
             parse_mode="HTML"
         )
         return
+
+    print(f'batch :{getstatus[0]}')
 
     batch = getstatus
 
@@ -1498,6 +1515,7 @@ async def rules(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 import traceback
 import logging
 
+
 async def global_error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
     logging.error(f"Exception while handling an update: {context.error}")
     traceback.print_exc()
@@ -1506,6 +1524,7 @@ async def global_error_handler(update: object, context: ContextTypes.DEFAULT_TYP
             await update.message.reply_text("⚠️ An internal error occurred. Please try again.")
         except Exception:
             pass
+
 
 def pybot():
     print(f'production : {is_production}')
@@ -1520,7 +1539,6 @@ def pybot():
         token = TELEGRAM_BOT_TOKEN_COMMITIO
 
     application = Application.builder().token(token).build()
-    
     # 🛡️ Global Exception Handler to safeguard production app from breaking
     application.add_error_handler(global_error_handler)
 
@@ -1530,7 +1548,7 @@ def pybot():
     application.add_handler(CommandHandler("finished_project", finished_project))
     application.add_handler(CommandHandler("batch_details", batch_details))
 
-    grp_msg_handler = MessageHandler(filters.TEXT & (~filters.COMMAND), grp_msg)
+    grp_msg_handler = MessageHandler(filters.TEXT, grp_msg)
     application.add_handler(grp_msg_handler)
 
     application.add_handler(CommandHandler("help", help))
