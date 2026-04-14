@@ -1495,6 +1495,18 @@ async def rules(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 
+import traceback
+import logging
+
+async def global_error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    logging.error(f"Exception while handling an update: {context.error}")
+    traceback.print_exc()
+    if isinstance(update, Update) and update.message:
+        try:
+            await update.message.reply_text("⚠️ An internal error occurred. Please try again.")
+        except Exception:
+            pass
+
 def pybot():
     print(f'production : {is_production}')
     if is_production:
@@ -1508,6 +1520,9 @@ def pybot():
         token = TELEGRAM_BOT_TOKEN_COMMITIO
 
     application = Application.builder().token(token).build()
+    
+    # 🛡️ Global Exception Handler to safeguard production app from breaking
+    application.add_error_handler(global_error_handler)
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("join", join_grp))

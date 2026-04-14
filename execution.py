@@ -1,3 +1,4 @@
+import error_handler
 import asyncio
 
 from telegram import Update, ReactionTypeEmoji
@@ -13,6 +14,7 @@ import helpers
 import db_management
 
 
+@error_handler.safe_handler
 async def mention_check(update: Update, context: ContextTypes.DEFAULT_TYPE):
     mentions = []
     message = update.effective_message
@@ -55,6 +57,7 @@ async def mention_check(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return mentions
 
 
+@error_handler.safe_handler
 async def msg_process(msg_date, update: Update, context: ContextTypes.DEFAULT_TYPE, current_batch):
     current_batch = current_batch
     msg = update.message.text
@@ -263,6 +266,7 @@ async def msg_process(msg_date, update: Update, context: ContextTypes.DEFAULT_TY
         return 0
 
 
+@error_handler.safe_handler
 async def project_phase(msg_date, update: Update, context: ContextTypes.DEFAULT_TYPE, current_batch):
     sanitized_date = msg_date
     print(f'msg date: {msg_date}')

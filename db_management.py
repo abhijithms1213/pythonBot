@@ -1504,8 +1504,9 @@ async def dbops(operation, args):
             return await dev_suggestions_add(args, cursor)
 
     except Exception as e:
-        print(f"[DB ERROR] {operation} → {e}")
-        raise
+        import traceback; traceback.print_exc()
+        import logging; logging.error(f"[DB ERROR] {operation} → {e}")
+        return [False, []]
 
     finally:
         if connect:

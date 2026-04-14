@@ -1,3 +1,4 @@
+import error_handler
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 import db_management
@@ -49,6 +50,7 @@ from telegram.constants import MessageEntityType
 #         print('msg not under any')
 #         return [None, '']
 
+@error_handler.safe_handler
 async def process_weekly_report(first_as_int, second_as_int, is_from_between: bool = None):
     if not is_from_between:
         empty = ''
@@ -183,6 +185,7 @@ def format_users(users):
     return "\n\n".join(formatted)
 
 
+@error_handler.safe_handler
 async def lets_clean_all(context: ContextTypes.DEFAULT_TYPE, update: Update):
     today = datetime.now().date()
     today_as_int = int(today.strftime("%Y%m%d"))
@@ -231,6 +234,7 @@ async def lets_clean_all(context: ContextTypes.DEFAULT_TYPE, update: Update):
 
 
 # [Done]
+@error_handler.safe_handler
 async def attention_msgs(context):
     batch = await db_management.dbops('get_current_batch', '')
     if not batch:
@@ -277,6 +281,7 @@ async def attention_msgs(context):
 
 
 # [Done]
+@error_handler.safe_handler
 async def weekly_report(context: ContextTypes.DEFAULT_TYPE):
     print('weekly')
     getstatus = await  db_management.dbops('get_current_batch', '')
@@ -478,6 +483,7 @@ async def weekly_report(context: ContextTypes.DEFAULT_TYPE):
 
 
 # [Done]
+@error_handler.safe_handler
 async def daily_update(context: ContextTypes.DEFAULT_TYPE):
     getstatus = await  db_management.dbops('get_current_batch', '')
     print(f'batch: {type(getstatus[1])} {type(getstatus[0])}')
@@ -573,6 +579,7 @@ async def daily_update(context: ContextTypes.DEFAULT_TYPE):
 
 
 # [Done]
+@error_handler.safe_handler
 async def notify_devs_to_update(context: ContextTypes.DEFAULT_TYPE):
     getstatus = await  db_management.dbops('get_current_batch', '')
     print(f'batch: {type(getstatus[1])} {type(getstatus[0])}')
