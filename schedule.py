@@ -186,7 +186,7 @@ def format_users(users):
 
 
 @error_handler.safe_handler
-async def lets_clean_all(context: ContextTypes.DEFAULT_TYPE, update: Update):
+async def lets_clean_all(context: ContextTypes.DEFAULT_TYPE):
     today = datetime.now().date()
     today_as_int = int(today.strftime("%Y%m%d"))
     # today_as_int = 20260509
@@ -223,7 +223,7 @@ async def lets_clean_all(context: ContextTypes.DEFAULT_TYPE, update: Update):
                 "━━━━━━━━━━━━━━━━━━━━━━"
             )
             await context.bot.send_message(
-                chat_id=update.effective_chat.id,
+                chat_id=cu_grp_id,
                 text=message,
                 parse_mode="HTML"
             )

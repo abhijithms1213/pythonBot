@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, time
 import production_bool
 # if update.message.text == 'weekly_report':
 #     await schedule_py.weekly_report(context)
@@ -763,7 +763,7 @@ async def join_grp(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             f"""
     🎉 *Welcome Back!* 🎉
 
-    Hey {data["first_name"]} 👋  
+    Hey {data["first_name"]} 👋
 
     ━━━━━━━━━━━━━━━━━━━
     📌 *Project Details*
@@ -1539,6 +1539,26 @@ def pybot():
         token = TELEGRAM_BOT_TOKEN_COMMITIO
 
     application = Application.builder().token(token).build()
+
+    # Job Queue for Cronjobs
+    job_queue = application.job_queue
+
+    # Daily Report (Yesterday's work)
+    job_queue.run_daily(schedule_py.daily_update, time=time(hour=8, minute=0))
+
+    # Attention Messages (Reminders for tomorrow/today events)
+    job_queue.run_daily(schedule_py.attention_msgs, time=time(hour=9, minute=0))
+
+    # Weekly Report (Leaderboard & points)
+    # (0=Monday, 1=Tuesday, 2=Wednesday, 3=Thursday, 4=Friday, 5=Saturday, 6=Sunday)
+    job_queue.run_daily(schedule_py.weekly_report, time=time(hour=10, minute=0), days=(6,))
+
+    # Notify Devs (Remind those who missed today's update)
+    job_queue.run_daily(schedule_py.notify_devs_to_update, time=time(hour=21, minute=0))
+
+    # TODO: Cleanup Batch (Check if today is cleanup day)
+    # job_queue.run_daily(schedule_py.lets_clean_all, time=time(hour=23, minute=30))
+
     # 🛡️ Global Exception Handler to safeguard production app from breaking
     application.add_error_handler(global_error_handler)
 
