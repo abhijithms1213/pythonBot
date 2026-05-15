@@ -494,7 +494,7 @@ async def daily_update(context: ContextTypes.DEFAULT_TYPE):
     print(f'yest : {yesterday}')
     today_as_int = int(today.strftime("%Y%m%d"))
     yesterday_as_int = int(yesterday.strftime("%Y%m%d"))
-    # yesterday_as_int = 20260504  # testing purpose
+    # yesterday_as_int = 20260418  # testing purpose
     print(f'day as str {today_as_int} yes :{yesterday_as_int}')
 
     if getstatus is None:
@@ -586,7 +586,8 @@ async def notify_devs_to_update(context: ContextTypes.DEFAULT_TYPE):
     print(f'\n BATCH: {getstatus}')
     today = datetime.now().date()
     today_as_int = int(today.strftime("%Y%m%d"))
-    # today_as_int = 20260425
+    # today_as_int = 20260417
+    # today
 
     if getstatus is None:
         print('no running batches')
